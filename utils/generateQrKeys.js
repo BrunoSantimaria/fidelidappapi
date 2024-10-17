@@ -7,7 +7,6 @@ const qr = require("qrcode");
 const generateQrKeys = async () => {
   console.log("Generating QR keys for all accounts...");
   try {
-    // Set the expiration time (e.g., 24 hours from now)
     const expirationTime = new Date();
     expirationTime.setHours(expirationTime.getHours() + 24);
 
