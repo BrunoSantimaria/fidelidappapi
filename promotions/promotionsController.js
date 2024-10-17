@@ -14,7 +14,7 @@ const { StrToObjectId } = require("../utils/StrToObjectId.js");
 exports.createPromotion = async (req, res) => {
   try {
     // Extract the user ID from the JWT token in the request headers
-    const token = req.cookies.token; // Assuming token is stored in a cookie
+    let token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email; // Assuming the user ID is stored in the JWT payload as "userId"
 
@@ -165,7 +165,7 @@ exports.getPromotions = async (req, res) => {
 };
 
 exports.getPromotionById = async (req, res) => {
-  const token = req.cookies.token; // Asumiendo que el token está en una cookie
+  let token = req.headers.authorization?.split(" ")[1];
   if (token) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 

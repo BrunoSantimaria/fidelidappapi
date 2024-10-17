@@ -124,7 +124,7 @@ exports.googleSignIn = async (req, res) => {
 // Route to handle /auth/current endpoint
 exports.current = async (req, res) => {
   try {
-    const token = req.cookies.token;
+    let token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
@@ -141,7 +141,7 @@ exports.current = async (req, res) => {
 
 //Lougout endpoint
 exports.logout = async (req, res) => {
-  console.log("Deslogeando usuario", req.cookies.token);
+  console.log("Deslogeando usuario", req.headers.authorization?.split(" ")[1]);
   try {
     res.clearCookie("token");
     res.status(200).json({ message: "Logout successful" });

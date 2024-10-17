@@ -8,7 +8,7 @@ exports.addUserToAccount = async (req, res) => {
   console.log("Adding User to account");
   try {
     // Extract the user ID from the JWT token in the request headers
-    const token = req.cookies.token; // Assuming token is stored in a cookie
+    let token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const ownerId = decoded.id;
 
