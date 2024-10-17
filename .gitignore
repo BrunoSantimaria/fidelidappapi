@@ -1,0 +1,11 @@
+# Ignore node_modules directory
+node_modules/
+
+# Ignore environment files
+.env
+
+# Ignore GCP Key
+/promotions/imagesutils/fidelidapp-key.json
+
+# Ignore uploads folder
+/uploads
