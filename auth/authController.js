@@ -36,7 +36,6 @@ exports.signIn = async (req, res) => {
 exports.signUp = async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    const emailLower = email.toLowerCase();
 
     //Validar que vengan los campos
     if (!name || !email || !password) {
@@ -44,7 +43,7 @@ exports.signUp = async (req, res) => {
     }
 
     // Verificar si el usuario ya existe
-    const existingUser = await User.findOne({ emailLower });
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: "El email ya esta asociado a una cuenta" });
     }
