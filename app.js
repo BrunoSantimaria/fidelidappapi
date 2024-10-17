@@ -19,7 +19,7 @@ app.use(bodyParser.json());
 const allowedOrigins = ["http://localhost:5173", "https://fidelidappclient.vercel.app"];
 
 const corsOptions = {
-  origin: "https://fidelidappclient.vercel.app", // El dominio de tu cliente en producción
+  origin: allowedOrigins, // El dominio de tu cliente en producción
   credentials: true, // Permite el envío de cookies (credenciales)
 };
 
