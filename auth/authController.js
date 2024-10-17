@@ -12,9 +12,9 @@ exports.signIn = async (req, res) => {
   try {
     // Obtener datos del cuerpo de la solicitud
     const { email, password } = req.body;
-
+    const emailLower = email.toLowerCase();
     // Verificar si el usuario existe
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ emailLower });
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Credenciales inválidas" });
     }
@@ -45,6 +45,7 @@ exports.signIn = async (req, res) => {
 exports.signUp = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    const emailLower = email.toLowerCase();
 
     //Validar que vengan los campos
     if (!name || !email || !password) {
@@ -52,7 +53,7 @@ exports.signUp = async (req, res) => {
     }
 
     // Verificar si el usuario ya existe
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ emailLower });
     if (existingUser) {
       return res.status(409).json({ message: "El email ya esta asociado a una cuenta" });
     }
@@ -107,7 +108,8 @@ exports.googleSignIn = async (req, res) => {
 
     // If user doesn't exist, create a new user
     if (!user) {
-      user = new User({ email, name });
+      const emailLower = email.toLowerCase();
+      user = new User({ emailLower, name });
       await user.save();
       console.log("User created:", user);
     }
@@ -121,20 +123,19 @@ exports.googleSignIn = async (req, res) => {
       await newAccount.save();
     }
 
-    // Generate authentication token
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
 
     log.logAction(email, "login", "Login exitoso con Google");
 
     // Set HTTP-only cookie
     res.cookie("token", token, {
-      httpOnly: true, // La cookie no es accesible desde JavaScript
-      secure: true, // En producción, solo se enviará sobre HTTPS
-      sameSite: "None", // Necesario para cookies entre dominios cruzados (CORS)
-      path: "/", // La cookie será válida para todo el dominio
-      maxAge: 3600000, // Duración de la cookie (en milisegundos)
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+      path: "/",
+      maxAge: 3600000,
     });
-    // Send response with the token
+
     res.status(200).json({ token });
   } catch (error) {
     console.error("Error signing in with Google:", error);
@@ -145,15 +146,12 @@ exports.googleSignIn = async (req, res) => {
 // Route to handle /auth/current endpoint
 exports.current = async (req, res) => {
   try {
-    // Extract the user ID from the JWT token in the request headers
-    const token = req.cookies.token; // Assuming token is stored in a cookie
+    const token = req.cookies.token;
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
-    //Search accounts by email and see if user is part of any
     const account = await Account.findOne({ userEmails: email });
 
-    // Add plan details to the accounts
     const plan = await Plan.findOne({ planStatus: account.planStatus });
 
     res.status(200).json({ name: req.name, accounts: account, plan: plan });
@@ -165,7 +163,6 @@ exports.current = async (req, res) => {
 
 //Lougout endpoint
 exports.logout = async (req, res) => {
-  // Clear the JWT token cookie
   console.log("Deslogeando usuario", req.cookies.token);
   try {
     res.clearCookie("token");

@@ -4,6 +4,7 @@ exports.verifyToken = async (req, res, next) => {
   try {
     // Prioridad 1: Verificar el token en las cookies
     let token = req.cookies.token;
+    console.log("Token en cookies:", token, "Token en headers:", req.headers.authorization);
 
     // Prioridad 2: Si no hay token en las cookies, buscarlo en los headers (para dispositivos móviles)
     if (!token && req.headers.authorization) {
