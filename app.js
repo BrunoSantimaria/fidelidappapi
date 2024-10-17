@@ -16,13 +16,20 @@ app.use(cookieParser());
 
 // Middleware
 app.use(bodyParser.json());
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  })
-);
+const allowedOrigins = ["http://localhost:5173", "https://fidelidappclient.vercel.app"];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 // Handle preflight requests
 app.options("*", cors());
 
