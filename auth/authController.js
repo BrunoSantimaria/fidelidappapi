@@ -22,15 +22,6 @@ exports.signIn = async (req, res) => {
     // Generar token de autenticación
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
 
-    // Set HTTP-only cookie
-    res.cookie("token", token, {
-      httpOnly: true, // La cookie no es accesible desde JavaScript
-      secure: true, // En producción, solo se enviará sobre HTTPS
-      sameSite: "None", // Necesario para cookies entre dominios cruzados (CORS)
-      path: "/", // La cookie será válida para todo el dominio
-      maxAge: 3600000, // Duración de la cookie (en milisegundos)
-    });
-
     log.logAction(email, "login", "Login Successful");
 
     // Send response with the token
@@ -108,8 +99,7 @@ exports.googleSignIn = async (req, res) => {
 
     // If user doesn't exist, create a new user
     if (!user) {
-      const emailLower = email.toLowerCase();
-      user = new User({ emailLower, name });
+      user = new User({ email, name });
       await user.save();
       console.log("User created:", user);
     }
@@ -124,17 +114,6 @@ exports.googleSignIn = async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
-
-    log.logAction(email, "login", "Login exitoso con Google");
-
-    // Set HTTP-only cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      path: "/",
-      maxAge: 3600000,
-    });
 
     res.status(200).json({ token });
   } catch (error) {
