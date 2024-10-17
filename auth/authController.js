@@ -12,9 +12,9 @@ exports.signIn = async (req, res) => {
   try {
     // Obtener datos del cuerpo de la solicitud
     const { email, password } = req.body;
-    const emailLower = email.toLowerCase();
+
     // Verificar si el usuario existe
-    const user = await User.findOne({ emailLower });
+    const user = await User.findOne({ email });
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Credenciales inválidas" });
     }

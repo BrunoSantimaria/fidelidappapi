@@ -2,17 +2,14 @@ const jwt = require("jsonwebtoken");
 
 exports.verifyToken = async (req, res, next) => {
   try {
-    // Prioridad 1: Verificar el token en las cookies
-    let token = req.cookies.token;
-    console.log("Token en cookies:", token, "Token en headers:", req.headers.authorization);
+    // Prioridad 1: Verificar el token en los headers
+    let token = req.headers.authorization?.split(" ")[1]; // Suponiendo que el token viene en el formato 'Bearer <token>'
+    console.log("Token en headers:", token);
 
-    // Prioridad 2: Si no hay token en las cookies, buscarlo en los headers (para dispositivos móviles)
-    if (!token && req.headers.authorization) {
-      // El token se espera en formato: "Bearer <token>"
-      const bearerToken = req.headers.authorization.split(" ");
-      if (bearerToken.length === 2 && bearerToken[0] === "Bearer") {
-        token = bearerToken[1];
-      }
+    // Prioridad 2: Si no hay token en los headers, verificar en las cookies
+    if (!token) {
+      token = req.cookies.token;
+      console.log("Token en cookies:", token);
     }
 
     // Si no hay token en ninguno de los dos lugares, devolver un error
