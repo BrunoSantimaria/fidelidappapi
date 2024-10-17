@@ -23,11 +23,12 @@ exports.signIn = async (req, res) => {
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
 
     // Set HTTP-only cookie
-    res.cookie("authToken", token, {
-      httpOnly: true, // No accesible desde JavaScript
-      secure: true, // Solo enviada sobre HTTPS
-      sameSite: "None", // Permite el envío entre dominios
-      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // Expira en 7 días
+    res.cookie("token", token, {
+      httpOnly: true, // La cookie no es accesible desde JavaScript
+      secure: true, // En producción, solo se enviará sobre HTTPS
+      sameSite: "None", // Necesario para cookies entre dominios cruzados (CORS)
+      path: "/", // La cookie será válida para todo el dominio
+      maxAge: 3600000, // Duración de la cookie (en milisegundos)
     });
 
     log.logAction(email, "login", "Login Successful");
@@ -126,11 +127,12 @@ exports.googleSignIn = async (req, res) => {
     log.logAction(email, "login", "Login exitoso con Google");
 
     // Set HTTP-only cookie
-    res.cookie("authToken", token, {
-      httpOnly: true, // No accesible desde JavaScript
-      secure: true, // Solo enviada sobre HTTPS
-      sameSite: "None", // Permite el envío entre dominios
-      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7), // Expira en 7 días
+    res.cookie("token", token, {
+      httpOnly: true, // La cookie no es accesible desde JavaScript
+      secure: true, // En producción, solo se enviará sobre HTTPS
+      sameSite: "None", // Necesario para cookies entre dominios cruzados (CORS)
+      path: "/", // La cookie será válida para todo el dominio
+      maxAge: 3600000, // Duración de la cookie (en milisegundos)
     });
     // Send response with the token
     res.status(200).json({ token });
