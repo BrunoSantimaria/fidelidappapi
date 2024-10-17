@@ -1,8 +1,8 @@
 const axios = require("axios");
 const twilio = require("twilio");
 
-const accountSid = "ACa2fc17b0da0e9966d8a2160940bcc664";
-const token = "02f0cd60ac53ac4e64c5615439710a7f";
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const token = process.env.TWILIO_ACCOUNT_TOKEN;
 const client = new twilio(accountSid, token);
 
 const sendWSPMessage = async (message) => {
