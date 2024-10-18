@@ -27,7 +27,7 @@ exports.getAccountClients = async (req, res) => {
     });
 
     if (!clients.length) {
-      return res.status(404).json({ message: "No clients found" });
+      return [];
     }
 
     // Para cada cliente, filtrar las promociones que coincidan con las del restaurante y filtrar addedAccounts
