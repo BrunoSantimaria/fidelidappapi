@@ -66,7 +66,6 @@ const generateQrKeys = async () => {
 // Schedule the cron job to run every day at 6: AM UTC (3 AM CHILE)
 //cron.schedule('0 6 * * *', generateQrKeys);
 
-// Schedule the cron job to run every minute for testing
-// cron.schedule("* * * * *", generateQrKeys);
+//  cron.schedule("* * * * *", generateQrKeys);
 
 module.exports = { generateQrKeys };

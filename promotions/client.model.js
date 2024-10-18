@@ -11,6 +11,11 @@ const ClientSchema = new mongoose.Schema({
     unique: true,
     required: true,
   },
+  phoneNumber: {
+    type: String,
+    default: "",
+    required: false,
+  },
   addedAccounts: [
     {
       accountId: {
@@ -39,7 +44,7 @@ const ClientSchema = new mongoose.Schema({
       },
       status: {
         type: String,
-        enum: ["Active", "Redeemed", "Expired"],
+        enum: ["Active", "Redeemed", "Expired", "Pending"],
         default: "Active", // Default value is 'Active'
       },
       redeemCount: {

@@ -89,6 +89,7 @@ exports.addClient = async (req, res) => {
       client = new Client({
         name: clientData.name,
         email: email.trim(),
+        phoneNumber: clientData.phoneNumber,
         addedAccounts: [{ accountId: accountIdObj }],
         addedPromotions: promotionId ? [{ promotion: StrToObjectId(promotionId) }] : [],
       });
@@ -112,11 +113,11 @@ exports.addClient = async (req, res) => {
       // Si el cliente ya existe en la cuenta, lanzar un error
       return res.status(400).json({ message: "Client already exists in this account" });
     } else {
-      // Añadir referencia del cliente a la cuenta si no está
       account.clients.push({
         id: client._id,
         name: clientData.name,
         email: clientData.email.trim(),
+        phoneNumber: clientData.phoneNumber,
         addedAccounts: [accountIdObj],
         addedPromotions: promotionId ? [StrToObjectId(promotionId)] : [],
       });

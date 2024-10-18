@@ -21,6 +21,7 @@ const accountSchema = new mongoose.Schema({
       id: mongoose.Schema.Types.ObjectId,
       name: String,
       email: String,
+      phoneNumber: String,
       addedPromotions: [
         {
           promotion: {

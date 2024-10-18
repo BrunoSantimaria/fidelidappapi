@@ -8,24 +8,23 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const qr = require("qrcode");
 const fs = require("fs");
 const mongoose = require("mongoose");
+const QRCode = require("qrcode");
+
 const log = require("../logger/logger.js");
 const { StrToObjectId } = require("../utils/StrToObjectId.js");
-// Controller function to handle promotion creation
+
 exports.createPromotion = async (req, res) => {
   try {
-    // Extract the user ID from the JWT token in the request headers
     let token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const email = decoded.email; // Assuming the user ID is stored in the JWT payload as "userId"
+    const email = decoded.email;
 
-    // Find the user in the database
     const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Look for account with this email
     const account = await Account.findOne({ userEmails: email });
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
@@ -33,7 +32,6 @@ exports.createPromotion = async (req, res) => {
 
     console.log(req.body);
 
-    // Create a new promotion document with the user ID
     const promotion = new Promotion({
       userID: account.owner,
       title: req.body.title,
@@ -47,19 +45,14 @@ exports.createPromotion = async (req, res) => {
       conditions: req.body.conditions,
     });
 
-    // Save the promotion to the database
     await promotion.save();
 
-    // Push the promotion ID into the account's promotions array
     account.promotions.push(promotion._id);
 
-    // Save the updated account
     await account.save();
 
-    // Log the action
     log.logAction(email, "createPromotion", promotion.title);
 
-    // Respond with the created promotion
     res.status(201).json(promotion);
   } catch (error) {
     console.error("Error creating promotion:", error);
@@ -78,7 +71,6 @@ exports.updatePromotion = async (req, res) => {
       return res.status(404).json({ error: "Promotion not found" });
     }
 
-    // Actualiza solo los campos que se envían en el request
     promotion.title = title;
     promotion.description = description;
     promotion.promotionType = promotionType;
@@ -88,7 +80,6 @@ exports.updatePromotion = async (req, res) => {
     promotion.promotionDuration = promotionDuration;
     promotion.conditions = conditions;
 
-    // Solo actualiza la imagen si hay una nueva en req.body.imageUrl
     if (req.body.imageUrl) {
       promotion.imageUrl = req.body.imageUrl;
     }
@@ -101,14 +92,11 @@ exports.updatePromotion = async (req, res) => {
   }
 };
 
-// Controller function to get all promotions for the current user
 exports.getPromotions = async (req, res) => {
   try {
-    // Extract the user email from req
     const email = req.email;
     console.log("este es el correo" + email);
 
-    // Find the user in the database
     const user = await User.findOne({ email });
     console.log("este es el correo" + user);
     if (!user) {
@@ -118,14 +106,10 @@ exports.getPromotions = async (req, res) => {
     // Active Promotions:
     const promotions = await Promotion.find({ userID: user._id });
 
-    //Registered Clients, Total Visits, Redeemed Gifts
-    // Get promotion IDs
     const promotionIds = promotions.map((promotion) => promotion._id.toString());
 
-    // Find all clients associated with the promotions
     const clients = await Client.find({ "addedpromotions.promotion": { $in: promotionIds } });
 
-    // Calculate the required metrics (total visits count)
     const totalVisitsCount = clients.reduce((sum, client) => {
       return (
         sum +
@@ -137,7 +121,6 @@ exports.getPromotions = async (req, res) => {
       );
     }, 0);
 
-    // Calculate the number of redeemed gifts
     const redeemedGiftsCount = clients.reduce((sum, client) => {
       return (
         sum +
@@ -148,6 +131,7 @@ exports.getPromotions = async (req, res) => {
           }, 0)
       );
     }, 0);
+    console.log(promotions);
 
     res.status(200).json({
       promotions,
@@ -157,7 +141,7 @@ exports.getPromotions = async (req, res) => {
         totalVisits: totalVisitsCount,
         redeemedGifts: redeemedGiftsCount,
       },
-    }); // Respond with the list of promotions and metrics
+    });
   } catch (error) {
     console.error("Error fetching promotions:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -181,9 +165,6 @@ exports.getPromotionById = async (req, res) => {
       return res.status(404).json({ error: "Promotion not found" });
     }
 
-    // Verificar que el usuario tenga acceso a esta promoción
-
-    // Obtener el account asociado al userID de la promoción
     const account = await Account.findOne({ owner: StrToObjectId(promotion.userID.toString()) });
     console.log("Account found:", account);
 
@@ -191,15 +172,14 @@ exports.getPromotionById = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Asignar accountId a la promoción
     promotion.accountId = account._id.toString();
-    // Obtener los clientes con esta promoción y solo traer los datos relevantes
+
     const clients = await Client.aggregate([
       { $match: { "addedpromotions.promotion": promotion._id } },
       {
         $project: {
           name: 1,
-          email: 1, // Incluir otros campos del cliente según se necesite
+          email: 1,
           addedpromotions: {
             $filter: {
               input: "$addedpromotions",
@@ -211,7 +191,6 @@ exports.getPromotionById = async (req, res) => {
       },
     ]);
 
-    // Agrupar fechas de visita de los clientes para esta promoción
     const visitDatesAggregate = await Client.aggregate([
       { $match: { "addedpromotions.promotion": promotion._id } },
       { $unwind: "$addedpromotions" },
@@ -228,21 +207,18 @@ exports.getPromotionById = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    // Formatear visitsPerDay como array de objetos con [date, visits]
     const visitsPerDay = visitDatesAggregate.map((entry) => {
-      const formattedDate = new Date(entry._id).toISOString().split("T")[0]; // Formato yyyy-mm-dd
+      const formattedDate = new Date(entry._id).toISOString().split("T")[0];
       return { date: formattedDate, visits: entry.visits };
     });
 
-    // Crear la lista de clientes con el formato solicitado
     const clientList = clients.map((client) => ({
       name: client.name,
       email: client.email,
       id: client._id,
-      status: client.addedpromotions[0]?.status || "Unknown", // Tomar el estado de la primera promoción, si existe
+      status: client.addedpromotions[0]?.status || "Unknown",
     }));
 
-    // Estadísticas de la promoción
     const statistics = {
       TotalClients: clients.length,
       ActiveClients: clientList.filter((client) => client.status === "Active").length,
@@ -250,12 +226,11 @@ exports.getPromotionById = async (req, res) => {
       RedeemedClients: clientList.filter((client) => client.status === "Redeemed").length,
       TotalVisit: visitsPerDay.reduce((sum, entry) => sum + entry.visits, 0),
       visitsPerDay: visitsPerDay,
-      clientList: clientList, // Añadir la lista de clientes con el nuevo formato
+      clientList: clientList,
     };
 
     promotion.statistics = statistics;
 
-    // Enviar la promoción con el accountId y las estadísticas
     res.status(200).json({ promotion, accountId: promotion.accountId });
   } catch (error) {
     console.error("Error fetching promotion:", error);
@@ -264,7 +239,7 @@ exports.getPromotionById = async (req, res) => {
 };
 
 exports.addClientToPromotion = async (req, res) => {
-  const { promotionId, clientEmail, clientName } = req.body; // Eliminamos el accountId del body
+  const { promotionId, clientEmail, clientName, clientPhone } = req.body;
   console.log(req.body);
 
   if (!promotionId || !clientEmail) {
@@ -272,59 +247,50 @@ exports.addClientToPromotion = async (req, res) => {
   }
 
   try {
-    // Buscar la promoción existente
     const existingPromotiondata = await Promotion.findById(promotionId);
     if (!existingPromotiondata) {
       return res.status(404).json({ error: "Promotion not found" });
     }
 
-    // Buscar la cuenta asociada usando el userID de la promoción
     const account = await Account.findOne({ owner: StrToObjectId(existingPromotiondata.userID) });
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Verificar si el cliente ya existe en la colección de clientes
     let client = await Client.findOne({ email: clientEmail });
 
     if (!client) {
-      // Si el cliente no existe, crear un nuevo cliente
-      client = new Client({ email: clientEmail, name: clientName });
+      client = new Client({ email: clientEmail, name: clientName, phoneNumber: clientPhone });
       console.log("Client created:", client);
     }
 
-    // Verificar si el cliente ya tiene la cuenta en `addedAccounts`
     const existingAccount = client.addedAccounts.find((acc) => acc.accountId.toString() === account._id.toString());
 
     if (!existingAccount) {
-      // Si no existe, agregar la cuenta al array `addedAccounts`
       client.addedAccounts.push({ accountId: account._id });
     }
 
-    // Verificar si el cliente ya tiene la promoción
     const existingPromotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
 
     if (existingPromotion) {
       return res.status(400).json({ error: "Client already has this promotion" });
     }
 
-    // Agregar la promoción al array `addedpromotions` del cliente
     client.addedpromotions.push({
       promotion: promotionId,
       addedDate: new Date(),
       endDate: new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000), // Duración en milisegundos
-      status: "Active", // Estado por defecto
+      status: "Active",
     });
 
-    // Verificar si el cliente ya está en la lista de clientes de la cuenta
     const accountClientExists = account.clients.find((accClient) => accClient.email === clientEmail);
 
     if (!accountClientExists) {
-      // Si no está, agregar el cliente a la cuenta con la promoción
       account.clients.push({
         id: client._id,
         name: clientName,
         email: clientEmail,
+        phoneNumber: clientPhone,
         addedPromotions: [
           {
             promotion: promotionId,
@@ -335,20 +301,15 @@ exports.addClientToPromotion = async (req, res) => {
       });
     }
 
-    // Guardar los cambios en el cliente y la cuenta
     await client.save();
     await account.save();
 
-    // Generar la URL para el código QR
     const qrUrl = process.env.BASE_URL + "/promotions/" + client._id + "/" + existingPromotiondata._id;
 
-    // Generar código QR
     const qrCodeBuffer = await qr.toBuffer(qrUrl);
 
-    // Enviar correo al cliente con el código QR
     await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
 
-    // Registrar la acción en los logs
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
 
     res.status(201).json({ message: "Client added to promotion successfully", client });
@@ -391,57 +352,132 @@ exports.getClientPromotion = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
+  try {
+    const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
+    const msg = {
+      to: clientEmail,
+      from: "contacto@fidelidapp.cl",
+      subject: "¡Felicidades! ¡Has ganado tu promoción!",
+      html: `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Promoción Ganada</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              background-color: #f4f4f4;
+            }
+            .container {
+              width: 100%;
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              padding: 20px;
+              border-radius: 10px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .header {
+              text-align: center;
+              padding-bottom: 20px;
+            }
+            .header img {
+              max-width: 150px;
+            }
+            .content {
+              padding: 20px;
+              text-align: center;
+            }
+            .content h1 {
+              color: #333333;
+            }
+            .content p {
+              color: #666666;
+              line-height: 1.6;
+            }
+            .button {
+              display: inline-block;
+              padding: 10px 20px;
+              color: #ffffff;
+              background-color: #5c7898;
+              border-radius: 5px;
+              text-decoration: none;
+              margin-top: 20px;
+              text-color: #ffffff;
+              color: #ffffff;
+            }
+            .footer {
+              text-align: center;
+              padding: 20px;
+              font-size: 12px;
+              color: #aaaaaa;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="content">
+              <h1>¡Felicidades! ¡Has ganado tu promoción!</h1>
+              <h2>${promotionTitle}</h2>
+              <p>¡Enhorabuena! Has cumplido con los requisitos para ganar la promoción.</p>
+              <p><strong>Descripción de la promoción:</strong> ${existingPromotiondata.description}</p>
+              <p><strong>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</p>
+              <p>Para canjear tu premio, haz clic en el siguiente enlace:</p>
+              <a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Canjear mi Fidelicard</a>
+              <p><strong>Condiciones aplicables:</strong> ${existingPromotiondata.conditions}</p>
+            </div>
+            <div class="footer">
+              <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
+              <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    await sgMail.send(msg);
+    console.log("Email sent successfully");
+  } catch (error) {
+    console.error("Error sending email:", error);
+  }
+};
 
 exports.redeemVisits = async (req, res) => {
-  const { promotionId, clientEmail, dailyKey } = req.body;
+  const { clientEmail, promotionId, dailyKey } = req.body;
+  console.log(clientEmail, promotionId, dailyKey);
+
   if (!promotionId || !clientEmail || !dailyKey) {
     return res.status(400).json({ error: "Missing promotion ID or client email" });
   }
-  // Find Existing Promotion in Promotion Model
+
   const existingPromotiondata = await Promotion.findById(promotionId);
 
   if (!existingPromotiondata) {
     return res.status(404).json({ error: "Promotion not found" });
   }
-  // Buscar la cuenta asociada al userID de la promoción
+
   const account = await Account.findOne({ owner: existingPromotiondata.userID._id });
 
   if (!account) {
     return res.status(404).json({ error: "Associated account not found" });
   }
 
-  // Validar si el dailyKey recibido coincide con el dailyKey de la cuenta
   if (account.dailyKey !== dailyKey) {
     return res.status(401).json({ error: "Invalid daily key" });
   }
 
-  // Find the client by email
   let client = await Client.findOne({ email: clientEmail });
   if (!client) {
     return res.status(404).json({ error: "Client not found" });
   }
 
-  // // Extract email from token and validat that emails exists in the account
-  // try {
-  //   const token = req.cookies.authToken; // Assuming token is stored in a cookie
-  //   const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  //   const email = decoded.email; // Assuming the user ID is stored in the JWT payload as "userId"
-  //   // Search account by existinPromotionData.userID
-  //   const account = await Account.findOne({ owner: existingPromotiondata.userID });
-
-  //   if (!account) {
-  //     return res.status(404).json({ error: 'No existe esta cuenta' });
-  //   }
-  //   if (!account.userEmails.includes(email)) {
-  //     return res.status(401).json({ error: 'Usuario no autorizado para sumar visitas' });
-  //   }
-
-  // } catch (error) {
-  //   return res.status(401).json({ error: 'Usuario no autorizado para sumar visitas' });
-  // }
-
   try {
-    // Find the promotion in the client's addedpromotions array
     const promotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
 
     console.log("Client Card Promotion:", promotion);
@@ -450,19 +486,21 @@ exports.redeemVisits = async (req, res) => {
       return res.status(404).json({ error: "Promotion not found for this client" });
     }
 
-    //if promotion status is redeemed or expired return error
+    if (promotion.status === "Completed") {
+      return res.status(400).json({ error: "Promotion already completed" });
+    }
+
     if (promotion.status === "Redeemed" || promotion.status === "Expired") {
       return res.status(400).json({ error: "Promotion already " + promotion.status });
     }
 
-    //Check if date is expired
+    // Check if date is expired
     if (promotion.endDate < new Date()) {
       promotion.status = "Expired";
       await client.save();
       return res.status(400).json({ error: "Promotion already expired" });
     }
 
-    // Check if the promotions has already been added today
     if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
       return res.status(400).json({ error: "Promotion already added today" });
     }
@@ -471,28 +509,61 @@ exports.redeemVisits = async (req, res) => {
     promotion.actualVisits += 1;
     promotion.visitDates.push(new Date());
 
-    // Check if all required visits have been redeemed
     if (promotion.actualVisits >= existingPromotiondata.visitsRequired) {
-      promotion.status = "Redeemed";
-    }
+      promotion.status = "Pending";
 
-    // Save the updated client document
-    await client.save();
-    log.logAction(clientEmail, "redeemVisits", promotion.title);
-    res.status(200).json({ message: "Visits redeemed successfully", client });
+      const qrLink = `${process.env.BASE_URL}/redeem-promotion/${client._id}/${promotionId}`;
+
+      const qrCodeBuffer = await QRCode.toBuffer(qrLink);
+
+      await sendCompletedPromotionMail(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
+
+      res.status(200).json({ message: "Promotion completed, QR generated", qrCode: qrCodeBuffer.toString("base64"), promotion });
+    } else {
+      await client.save();
+      log.logAction(clientEmail, "redeemVisits", promotion.title);
+      res.status(200).json({ message: "Visits redeemed successfully", client });
+    }
   } catch (error) {
     console.error("Error redeeming visits:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
+exports.redeemPromotionByQRCode = async (req, res) => {
+  const { clientEmail, promotionId } = req.body;
+  console.log(clientEmail, promotionId);
+
+  try {
+    const client = await Client.findOne({ email: clientEmail });
+    console.log(client);
+
+    const promotion = client.addedpromotions.find((p) => p.promotion.toString() === promotionId);
+
+    if (!client || !promotion) {
+      return res.status(404).json({ error: "Client or promotion not found" });
+    }
+
+    if (promotion.status === "Redeemed" || promotion.status === "Expired") {
+      return res.status(400).json({ error: "Promotion already completed or expired" });
+    }
+
+    promotion.status = "Redeemed";
+    promotion.redeemCount = (promotion.redeemCount || 0) + 1;
+    await client.save();
+
+    res.status(200).json({ message: "Promotion completed successfully" });
+  } catch (error) {
+    console.error("Error redeeming promotion by QR:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 exports.deletePromotion = async (req, res) => {
   const promotionId = req.params.id;
   if (!promotionId) {
     return res.status(400).json({ error: "Missing promotion ID" });
   }
 
-  // Find and delete the promotion
   try {
     const promotion = await Promotion.findByIdAndDelete(promotionId);
     if (!promotion) {
@@ -558,7 +629,6 @@ exports.restartPromotion = async (req, res) => {
     }
 
     // Update the promotion data
-    promotion.redeemCount = (promotion.redeemCount || 0) + 1;
 
     // Reset promotion details if the promotion is reccurent
     if (existingPromotiondata.promotionRecurrent) {
