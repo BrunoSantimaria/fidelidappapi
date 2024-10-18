@@ -16,7 +16,7 @@ app.use(cookieParser());
 
 // Middleware
 app.use(bodyParser.json());
-const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl"];
+const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl", "https://fidelidappclient.vercel.app/"];
 
 const corsOptions = {
   origin: allowedOrigins, // El dominio de tu cliente en producción
