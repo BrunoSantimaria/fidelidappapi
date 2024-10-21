@@ -6,7 +6,7 @@ const Account = require("../accounts/Account.model.js");
 const Plan = require("../plans/Plans.model.js");
 const Agenda = require("../agenda/agenda.model.js");
 const log = require("../logger/logger.js");
-
+const { generateQr, sendQrCode } = require("../utils/generateQrKeys.js");
 // Controlador para iniciar sesión
 exports.signIn = async (req, res) => {
   try {
@@ -62,10 +62,10 @@ exports.signUp = async (req, res) => {
       // Si no hay cuenta asociada, crear una nueva cuenta y el usuario
       const user = await new User({ name, email, password });
       await user.save();
-
-      const account = await new Account({ owner: user._id, userEmails: [email] });
+      const qrCode = await generateQr();
+      const account = await new Account({ owner: user._id, userEmails: [email], accountQr: qrCode });
       await account.save();
-
+      await sendQrCode(account);
       log.logAction(email, "signup", "Usuario y Cuentas Creados");
       return res.status(201).json({ user, account });
     }
@@ -110,6 +110,7 @@ exports.googleSignIn = async (req, res) => {
       // If account doesn't exist, create a new account
       const newAccount = await new Account({ owner: user._id, userEmails: [email] });
       await newAccount.save();
+      await generateQr(newAccount._id);
     }
 
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);

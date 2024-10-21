@@ -449,10 +449,10 @@ const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, cl
 };
 
 exports.redeemVisits = async (req, res) => {
-  const { clientEmail, promotionId, dailyKey } = req.body;
-  console.log(clientEmail, promotionId, dailyKey);
+  const { clientEmail, promotionId, accountQr } = req.body;
+  console.log(clientEmail, promotionId, accountQr);
 
-  if (!promotionId || !clientEmail || !dailyKey) {
+  if (!promotionId || !clientEmail || !accountQr) {
     return res.status(400).json({ error: "Missing promotion ID or client email" });
   }
 
@@ -468,7 +468,7 @@ exports.redeemVisits = async (req, res) => {
     return res.status(404).json({ error: "Associated account not found" });
   }
 
-  if (account.dailyKey !== dailyKey) {
+  if (account.accountQr !== accountQr) {
     return res.status(401).json({ error: "Invalid daily key" });
   }
 

@@ -84,13 +84,12 @@ const accountSchema = new mongoose.Schema({
   },
   activeQr: {
     type: Boolean,
-    default: false,
+    default: true,
   },
-  dailyKey: {
+  accountQr: {
     type: String,
-  },
-  qrKeyExpiration: {
-    type: Date,
+    required: false,
+    unique: false,
   },
   createdAt: {
     type: Date,

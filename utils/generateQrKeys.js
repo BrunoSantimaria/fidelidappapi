@@ -3,7 +3,7 @@ const Account = require("../accounts/Account.model"); // Adjust the path accordi
 const { v4: uuidv4 } = require("uuid"); // Use uuid to generate unique keys
 const { sendMarketingEmail } = require("../utils/emailSender"); // Adjust the import path as needed
 const qr = require("qrcode");
-
+const account = require("../accounts/Account.model");
 const generateQrKeys = async () => {
   console.log("Generating QR keys for all accounts...");
   try {
@@ -17,55 +17,86 @@ const generateQrKeys = async () => {
     for (const account of accounts) {
       if (account.activeQr === true) {
         // Generate a unique QR key
-        const qrKey = uuidv4();
-
-        // Update the account with the new QR key and expiration time
-        account.dailyKey = qrKey;
-        account.qrKeyExpiration = expirationTime;
-        await account.save();
-
-        // Generate a QR code with the unique key
-        const qrCodeData = await qr.toBuffer(qrKey);
-        const qrCodeDataBase64 = await qrCodeData.toString("base64"); // Codificar en base64
-
-        const subject = "Tu código QR Diario";
-        const header = "Comparte este QR con tus clientes!";
-
-        const emailContent = `
-           <p>Hola,</p>
-           <p>Comparte el QR adjunto con tus clientes para activar sus promociones!</p>
-           <p>Este código es válido sólo por hoy!</p>
-           <p>Gracias por usar Fidelidapp.</p>
-           <p>Cualquier duda o problema puedes contactarnos a +56996706983.</p>
-       `;
-
-        // Send the email with the QR code
-        await sendMarketingEmail({
-          to: account.userEmails,
-          subject,
-          header,
-          text: emailContent,
-          attachments: [
-            {
-              content: qrCodeDataBase64,
-              filename: "promotionqrcode.png",
-              type: "image/png",
-              disposition: "attachment",
-            },
-          ],
-        });
-
-        console.log(`QR Code sent to ${account.userEmails}`);
       }
+
+      // Schedule the cron job to run every day at 6: AM UTC (3 AM CHILE)
+      //cron.schedule('0 6 * * *', generateQrKeys);
+
+      //  cron.schedule("* * * * *", generateQrKeys);
     }
   } catch (error) {
     console.error("Error generating QR keys:", error);
   }
 };
+const generateQr = async () => {
+  return uuidv4();
+};
 
-// Schedule the cron job to run every day at 6: AM UTC (3 AM CHILE)
-//cron.schedule('0 6 * * *', generateQrKeys);
+const sendQrCode = async (account) => {
+  const qrKey = await account.accountQr;
+  const qrCodeData = await qr.toBuffer(qrKey);
+  const qrCodeDataBase64 = await qrCodeData.toString("base64");
 
-//  cron.schedule("* * * * *", generateQrKeys);
+  const subject = "¡Te has registrado exitosamente!";
+  const header = "¡Bienvenido a Fidelidapp!";
 
-module.exports = { generateQrKeys };
+  const emailContent = `
+<p>Hola,</p>
+<p>Comparte el QR adjunto con tus clientes para activar sus promociones!</p>
+<p>Gracias por usar Fidelidapp.</p>
+<p>Cualquier duda o problema puedes contactarnos a +56996706983.</p>
+`;
+  try {
+    await sendMarketingEmail({
+      to: account.userEmails,
+      subject,
+      header,
+      text: emailContent,
+      attachments: [
+        {
+          content: qrCodeDataBase64,
+          filename: "promotionqrcode.png",
+          type: "image/png",
+          disposition: "attachment",
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("Error sending QR code:", error);
+  }
+};
+
+const sendRefreshQr = async (account) => {
+  const qrKey = await account.accountQr;
+  const qrCodeData = await qr.toBuffer(qrKey);
+  const qrCodeDataBase64 = await qrCodeData.toString("base64");
+
+  const subject = "¡Qr actualizado!";
+  const header = "Has solicitado actualizar tu QR";
+
+  const emailContent = `
+<p>Hola,</p>
+<p>Te adjuntamos tu nuevo QR, el cual también se encuentra disponible en la web.</p>
+<p>Gracias por usar Fidelidapp.</p>
+<p>Cualquier duda o problema puedes contactarnos a +56996706983.</p>
+`;
+  try {
+    await sendMarketingEmail({
+      to: account.userEmails,
+      subject,
+      header,
+      text: emailContent,
+      attachments: [
+        {
+          content: qrCodeDataBase64,
+          filename: "promotionqrcode.png",
+          type: "image/png",
+          disposition: "attachment",
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("Error sending QR code:", error);
+  }
+};
+module.exports = { generateQr, sendQrCode, sendRefreshQr };
