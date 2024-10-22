@@ -88,7 +88,7 @@ const accountSchema = new mongoose.Schema({
   },
   accountQr: {
     type: String,
-    required: false,
+    required: true,
     unique: false,
   },
   createdAt: {

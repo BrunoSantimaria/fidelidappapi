@@ -107,10 +107,11 @@ exports.googleSignIn = async (req, res) => {
     const account = await Account.findOne({ userEmails: email });
 
     if (!account) {
-      // If account doesn't exist, create a new account
-      const newAccount = await new Account({ owner: user._id, userEmails: [email] });
-      await newAccount.save();
-      await generateQr(newAccount._id);
+      const qrCode = await generateQr();
+      const account = await new Account({ owner: user._id, userEmails: [email], accountQr: qrCode });
+      await account.save();
+      await sendQrCode(account);
+      log.logAction(email, "signup", "Usuario y Cuentas Creados");
     }
 
     const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
@@ -130,7 +131,12 @@ exports.current = async (req, res) => {
     const email = decoded.email;
 
     const account = await Account.findOne({ userEmails: email });
-
+    if (!account.accountQr) {
+      const qrCode = await generateQr();
+      account.accountQr = qrCode;
+      await account.save();
+      await sendQrCode(account);
+    }
     const plan = await Plan.findOne({ planStatus: account.planStatus });
 
     res.status(200).json({ name: req.name, accounts: account, plan: plan });

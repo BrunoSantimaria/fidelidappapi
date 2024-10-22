@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const Account = require("./Account.model");
 const { generateQr, sendRefreshQr } = require("../utils/generateQrKeys");
 
-addUserToAccount = async (req, res) => {
+const addUserToAccount = async (req, res) => {
   console.log("Adding User to account");
   try {
     let token = req.headers.authorization?.split(" ")[1];
@@ -40,10 +40,16 @@ addUserToAccount = async (req, res) => {
   }
 };
 
-refreshQr = async (req, res) => {
+const refreshQr = async (req, res) => {
+  console.log("Refreshing QR keys");
+  console.log(req.body);
   try {
+    const accountId = req.body.accountId;
+    const account = await Account.findById(accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found" });
+    }
     const newQr = await generateQr();
-    const account = await Account.findById(req.accountId);
     account.accountQr = newQr;
     await account.save();
     await sendRefreshQr(account);
