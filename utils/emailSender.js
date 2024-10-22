@@ -1,7 +1,7 @@
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const sendAgendaEmail = async ({ to, subject, header, text, attachments }) => {
-  const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
   const formattedText = text.replace(/(?:\r\n|\r|\n)/g, "<br>");
   const html = `
         <!DOCTYPE html>
@@ -105,7 +105,7 @@ const sendAgendaEmail = async ({ to, subject, header, text, attachments }) => {
   }
 };
 const sendMarketingEmail = async ({ to, subject, header, text, attachments }) => {
-  const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
   const formattedText = text.replace(/(?:\r\n|\r|\n)/g, "<br>");
 
   const html = `

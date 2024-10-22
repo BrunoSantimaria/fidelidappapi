@@ -350,7 +350,7 @@ exports.getClientPromotion = async (req, res) => {
 };
 const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
-    const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
+    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
     const msg = {
       to: clientEmail,
       from: "contacto@fidelidapp.cl",
@@ -648,7 +648,7 @@ exports.restartPromotion = async (req, res) => {
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
-    const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
+    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
     const msg = {
       to: clientEmail,
       from: "contacto@fidelidapp.cl",
@@ -722,7 +722,7 @@ const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid,
               <p>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</h1>
               <p>Verifica tu promoción haciendo clic en el siguiente enlace:</p>
               <a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Ver Fidelicard</a>
-              <p>Y para validar tus visitas, presenta el QR adjunto cada vez que vayas a la tienda. </p>
+              <p>Y para validar tus visitas, pide que te muestren el QR de la tienda. </p>
               <p>Aplican Condiciones:</p>
               <p>${existingPromotiondata.conditions}</p>
             </div>
