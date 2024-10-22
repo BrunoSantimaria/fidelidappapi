@@ -62,7 +62,7 @@ function isRelevantPromotionForClient(client, promotion) {
   // Por ejemplo, se puede usar el email del cliente o algún otro campo que relacione al cliente con la promoción.
   // En este caso, la comparación es basada en email, pero puedes ajustarla según tus necesidades.
 
-  return client.email === promotion.userID.email; // Ajusta la lógica aquí
+  return client.email === promotion.userID.email;
 }
 
 // Añadir un cliente
@@ -71,7 +71,7 @@ exports.addClient = async (req, res) => {
   console.log(`Este es el accountid ${accountId}, esta es la data del cliente, y esta es la promocion ${promotionId}`);
 
   const accountIdObj = StrToObjectId(accountId);
-  const email = clientData.email.trim(); // Limpiar el email (eliminar espacios/tabulaciones)
+  const email = clientData.email.trim();
 
   try {
     // Buscar la cuenta
@@ -81,10 +81,8 @@ exports.addClient = async (req, res) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // Buscar cliente por email
     let client = await Client.findOne({ email: email.trim() });
 
-    // Si el cliente no existe, crear uno nuevo
     if (!client) {
       client = new Client({
         name: clientData.name,
@@ -95,12 +93,10 @@ exports.addClient = async (req, res) => {
       });
       await client.save();
     } else {
-      // Si el cliente ya existe, agregar la cuenta actual a `addedAccounts` si no está
       if (!client.addedAccounts.some((entry) => entry.accountId.equals(accountIdObj))) {
         client.addedAccounts.push({ accountId: accountIdObj });
       }
 
-      // Si se proporcionó una `promotionId`, agregar la promoción si no está
       if (promotionId && !client.addedPromotions.some((entry) => entry.promotion.equals(StrToObjectId(promotionId)))) {
         client.addedPromotions.push({ promotion: StrToObjectId(promotionId) });
       }
@@ -123,7 +119,6 @@ exports.addClient = async (req, res) => {
       });
     }
 
-    // Guardar cambios en la cuenta
     await account.save();
 
     return res.status(200).json({ message: "Client added successfully", clients: account.clients });

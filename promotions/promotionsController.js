@@ -304,11 +304,7 @@ exports.addClientToPromotion = async (req, res) => {
     await client.save();
     await account.save();
 
-    const qrUrl = process.env.BASE_URL + "/promotions/" + client._id + "/" + existingPromotiondata._id;
-
-    const qrCodeBuffer = await qr.toBuffer(qrUrl);
-
-    await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
+    await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title);
 
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
 
@@ -650,7 +646,7 @@ exports.restartPromotion = async (req, res) => {
   }
 };
 
-const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle, qrCodeBuffer) => {
+const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://www.fidelidapp.cl/static/media/LogoAzulSinFondo.cf23cc08516bc0ec6efb.png"; // Replace with your actual logo URL
     const msg = {
@@ -738,14 +734,6 @@ const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid,
         </body>
         </html>
       `,
-      attachments: [
-        {
-          content: qrCodeBuffer.toString("base64"),
-          filename: "promotionqrcode.png",
-          type: "image/png",
-          disposition: "attachment",
-        },
-      ],
     };
 
     await sgMail.send(msg);
