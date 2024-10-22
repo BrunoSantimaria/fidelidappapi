@@ -10,6 +10,7 @@ const accountSchema = new mongoose.Schema({
   },
   logo: {
     type: String,
+    default: "",
   },
   userEmails: [
     {
@@ -25,49 +26,48 @@ const accountSchema = new mongoose.Schema({
       addedPromotions: [
         {
           promotion: {
-            type: mongoose.Schema.Types.ObjectId, // ID de la promoción
-            ref: "Promotion", // Referencia al modelo Promotion
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Promotion",
           },
           addedDate: {
-            type: Date, // Fecha de adición de la promoción
-            default: Date.now, // Establece la fecha actual si no se especifica
+            type: Date,
+            default: Date.now,
           },
           endDate: {
-            type: Date, // Fecha de expiración de la promoción
+            type: Date,
           },
           actualVisits: {
-            type: Number, // Número de visitas actuales
-            default: 0, // Valor inicial 0
+            type: Number,
+            default: 0,
           },
           status: {
             type: String,
-            enum: ["Active", "Expired"], // Estado de la promoción
-            default: "Active", // Valor por defecto
+            enum: ["Active", "Expired"],
+            default: "Active",
           },
           redeemCount: {
-            type: Number, // Contador de redenciones
-            default: 0, // Valor inicial
+            type: Number,
+            default: 0,
           },
           visitDates: [
             {
-              type: Date, // Fechas de visitas
+              type: Date,
             },
           ],
         },
       ],
     },
   ],
-
   promotions: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Promotion", // Referencia al modelo de promociones
+      ref: "Promotion",
     },
   ],
   planStatus: {
     type: String,
     default: "free",
-    enum: ["free", "pro", "premium", "admin"], // Ejemplo de posibles estados
+    enum: ["free", "pro", "premium", "admin"],
   },
   planDetails: {
     type: Object,
@@ -77,7 +77,7 @@ const accountSchema = new mongoose.Schema({
   },
   accountLogo: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Image", // Referencia al modelo de imagen
+    ref: "Image",
   },
   Industry: {
     type: String,
@@ -95,8 +95,22 @@ const accountSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  socialMedia: [
+    {
+      instagram: {
+        type: String,
+        default: "",
+      },
+      facebook: {
+        type: String,
+        default: "",
+      },
+      whatsapp: {
+        type: String,
+        default: "",
+      },
+    },
+  ],
 });
 
-const Account = mongoose.model("Account", accountSchema);
-
-module.exports = Account;
+module.exports = mongoose.model("Account", accountSchema);

@@ -231,7 +231,7 @@ exports.getPromotionById = async (req, res) => {
 
     promotion.statistics = statistics;
 
-    res.status(200).json({ promotion, accountId: promotion.accountId });
+    res.status(200).json({ promotion, accountId: promotion.accountId, accountLogo: account.logo, accountSocialMedia: account.socialMedia });
   } catch (error) {
     console.error("Error fetching promotion:", error);
     res.status(500).json({ error: "Internal server error" });

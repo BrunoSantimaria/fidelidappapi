@@ -77,25 +77,23 @@ exports.emailSenderEditor = async (req, res) => {
       return res.status(400).send("Invalid template format.");
     }
 
-    // Iterar sobre cada cliente en la lista y enviar un correo
     for (const customer of clients) {
       if (!customer.email) {
         console.error(`Invalid email for customer: ${customer.name}`);
-        continue; // Salta al siguiente cliente si no tiene correo
+        continue;
       }
 
       try {
         // Reemplazar dinámicamente los valores en la plantilla
+        const personalizedTemplate = template.replace("{nombreCliente}", customer.name);
 
-        // Estructurar el objeto para el correo
         const emailData = {
-          to: [customer.email], // Asegúrate de que 'to' sea un array con el email
+          to: [customer.email],
           subject: subject,
-          template: template, // Enviar el contenido HTML
+          template: personalizedTemplate,
         };
 
-        // Enviar el correo utilizando la función sendMarketingEmail
-        console.log("Email Data:", emailData); // Verifica la estructura del objeto emailData
+        console.log("Email Data:", emailData);
         await sendMarketingEmailEditor(emailData);
       } catch (emailError) {
         console.error(`Error sending email to ${customer.email}:`, emailError);
