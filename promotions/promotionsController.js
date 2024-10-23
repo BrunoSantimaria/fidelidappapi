@@ -95,15 +95,13 @@ exports.updatePromotion = async (req, res) => {
 exports.getPromotions = async (req, res) => {
   try {
     const email = req.email;
-    console.log("este es el correo" + email);
 
     const user = await User.findOne({ email });
-    console.log("este es el correo" + user);
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Active Promotions:
     const promotions = await Promotion.find({ userID: user._id });
 
     const promotionIds = promotions.map((promotion) => promotion._id.toString());
@@ -131,7 +129,6 @@ exports.getPromotions = async (req, res) => {
           }, 0)
       );
     }, 0);
-    console.log(promotions);
 
     res.status(200).json({
       promotions,

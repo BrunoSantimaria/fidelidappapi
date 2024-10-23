@@ -6,11 +6,9 @@ const emailSender = require("../utils/emailSender");
 const { handlePromotionRedemption } = require("../utils/handlePromotionRedemption");
 
 exports.createAgenda = async (req, res) => {
-  console.log("createAgenda");
   const { name, slots, eventDuration, availableDays, availableHours } = req.body;
   const ownerid = req.userid;
 
-  // Mapa para convertir los días de la semana a números
   const daysMap = {
     Lunes: 1,
     Martes: 2,

@@ -3,7 +3,7 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const Account = require("./Account.model");
 const { generateQr, sendRefreshQr } = require("../utils/generateQrKeys");
-
+const chalk = require("chalk");
 const addUserToAccount = async (req, res) => {
   console.log("Adding User to account");
   try {
@@ -60,4 +60,23 @@ const refreshQr = async (req, res) => {
   }
 };
 
-module.exports = { addUserToAccount, refreshQr };
+//! En proceso
+const saveAccountSettings = async (req, res) => {
+  console.log(chalk.green("Saving account settings"));
+  try {
+    const { accountId, settings } = req.body;
+    const account = await Account.findById(accountId);
+    if (!account) {
+      console.log(chalk.red("Account not found"));
+      return res.status(404).json({ error: "Account not found" });
+    }
+    account.settings = settings;
+    await account.save();
+    res.status(200).json({ message: "Account settings saved" });
+  } catch (error) {
+    console.error(chalk.red("Error saving account settings:", error));
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+//! -----------
+module.exports = { addUserToAccount, refreshQr, saveAccountSettings };
