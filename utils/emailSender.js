@@ -162,7 +162,6 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
         <div class="content">
           ${header ? `<h1>${header}</h1>` : ""}
           <p>${formattedText}</p>
-          ${attachments && attachments.length > 0 ? '<img src="cid:logoImage" alt="Inline Image" style="max-width: 100%; height: auto;">' : ""}
         </div>
         <div class="footer">
           <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
@@ -179,7 +178,7 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
       from: "contacto@fidelidapp.cl",
       subject,
       html,
-      attachments: attachments || [], // Ensure attachments is always an array
+      attachments: attachments || [],
     };
 
     await sgMail.send(msg);

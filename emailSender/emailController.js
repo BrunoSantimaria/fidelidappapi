@@ -1,11 +1,57 @@
-const { sendMarketingEmail } = require("../utils/emailSender");
 const { sendMarketingEmailEditor } = require("../utils/emailSenderEditor");
-const Account = require("../accounts/Account.model");
+const { Account } = require("../accounts/Account.model");
+const chalk = require("chalk");
 
-// Controller function to handle sending emails
+const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simultáneamente
+
+async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit) {
+  let emailsSentCount = 0;
+
+  // Función para enviar correos con un límite de concurrencia
+  const sendEmail = async (client) => {
+    console.log(client);
+
+    // Validar que el cliente tiene las propiedades necesarias
+    if (!client || !client.email || !client.name) {
+      console.error(`Invalid client data: ${JSON.stringify(client)}`);
+      return; // Saltar correos inválidos
+    }
+
+    // Verificar si al enviar este correo, se superará el límite
+    if (emailsSentLast30Days + emailsSentCount >= emailLimit) {
+      throw new Error(`Cannot send more emails. Monthly email limit of ${emailLimit} reached.`);
+    }
+
+    // Reemplazar dinámicamente los valores en la plantilla
+    const personalizedTemplate = template.replace("{nombreCliente}", client.name);
+    const emailData = {
+      to: [client.email],
+      subject: subject,
+      template: personalizedTemplate,
+    };
+
+    console.log(chalk.yellow("Sending email to:", client.email));
+    await sendMarketingEmailEditor(emailData);
+    emailsSentCount++;
+  };
+
+  const promises = [];
+  for (const client of clients) {
+    if (promises.length >= MAX_CONCURRENT_EMAILS) {
+      await Promise.all(promises);
+      promises.length = 0;
+    }
+    promises.push(sendEmail(client));
+  }
+
+  await Promise.all(promises);
+
+  account.emailsSentCount += emailsSentCount;
+  account.lastEmailSentAt = Date.now();
+  await account.save();
+}
 exports.emailSender = async (req, res) => {
   try {
-    // Search for the account that has req.email on its userEmails
     const account = await Account.findOne({ userEmails: req.email });
 
     if (!account) {
@@ -24,27 +70,27 @@ exports.emailSender = async (req, res) => {
       return res.status(400).send("No valid clients provided.");
     }
 
-    // Iterate through each customer from the list and send an email
-    for (const customer of clients) {
-      if (!customer.email) {
-        console.error(`Invalid email for customer: ${customer.name}`);
+    // Iterate through each client from the list and send an email
+    for (const client of clients) {
+      if (!client.email) {
+        console.error(`Invalid email for client: ${client.name}`);
         continue; // Salta al siguiente cliente si no tiene correo
       }
 
       try {
-        const emailContent = template.replace("[Name]", customer.name).replace("[Detail]", customer.detail);
+        const emailContent = template.replace("[Name]", client.name).replace("[Detail]", client.detail);
 
         const emailData = {
-          to: [customer.email], // Asegúrate de que 'to' sea un array con el email
+          to: [client.email], // Asegúrate de que 'to' sea un array con el email
           subject: subject,
           text: emailContent,
         };
 
         // Send email using sendMarketingEmail utility
-        console.log("Email Data:", emailData); // Verifica la estructura del objeto emailData
+        // Verifica la estructura del objeto emailData
         await sendMarketingEmail(emailData);
       } catch (emailError) {
-        console.error(`Error sending email to ${customer.email}:`, emailError);
+        console.error(`Error sending email to ${client.email}:`, emailError);
       }
     }
 
@@ -54,53 +100,37 @@ exports.emailSender = async (req, res) => {
     res.status(500).send("Error processing the request: " + error.message);
   }
 };
-
 exports.emailSenderEditor = async (req, res) => {
   try {
-    // Buscar la cuenta que tiene el correo en userEmails
     const account = await Account.findOne({ userEmails: req.email });
-
+    let emailLimit;
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
+    account._id.toString() == "6709341d2a9b1c008f1cf694" || "6719040fa8d262be5ee8c2d6"
+      ? (emailLimit = 30000)
+      : (emailLimit = account.planStatus === "pro" ? 10000 : 1000);
 
-    // Extraer datos de la solicitud
+    const emailsSentLast30Days = await account.getEmailSentCountLast30Days();
+    console.log(emailLimit, emailsSentLast30Days);
+    if (emailsSentLast30Days + 0 >= emailLimit) {
+      return res.status(403).json({ error: `Email limit reached for this month (${emailLimit} emails).` });
+    }
+
     const { template, subject, clients } = req.body;
 
-    // Validar que la lista de clientes fue proporcionada
     if (!clients || clients.length === 0) {
       return res.status(400).send("No valid clients provided.");
     }
 
-    // Validar que la plantilla sea una cadena de texto válida
     if (typeof template !== "string") {
       return res.status(400).send("Invalid template format.");
     }
 
-    for (const customer of clients) {
-      if (!customer.email) {
-        console.error(`Invalid email for customer: ${customer.name}`);
-        continue;
-      }
-
-      try {
-        // Reemplazar dinámicamente los valores en la plantilla
-        const personalizedTemplate = template.replace("{nombreCliente}", customer.name);
-
-        const emailData = {
-          to: [customer.email],
-          subject: subject,
-          template: personalizedTemplate,
-        };
-
-        console.log("Email Data:", emailData);
-        await sendMarketingEmailEditor(emailData);
-      } catch (emailError) {
-        console.error(`Error sending email to ${customer.email}:`, emailError);
-      }
-    }
+    await sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit);
 
     res.status(200).send("Emails sent successfully!");
+    console.log(emailLimit, emailsSentLast30Days);
   } catch (error) {
     console.error("Error processing the request:", error);
     res.status(500).send("Error processing the request: " + error.message);

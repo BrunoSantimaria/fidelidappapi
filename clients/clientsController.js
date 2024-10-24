@@ -1,5 +1,5 @@
 const Client = require("../promotions/client.model");
-const Account = require("../accounts/Account.model.js");
+const { Account } = require("../accounts/Account.model.js");
 const { StrToObjectId } = require("../utils/StrToObjectId");
 const Promotion = require("../promotions/promotions.model.js"); // Importa el modelo de promociones
 

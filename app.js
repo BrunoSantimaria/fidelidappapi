@@ -3,28 +3,63 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
+const mongoose = require("mongoose");
 const multer = require("multer");
 require("./utils/cronJob");
 require("./utils/generateQrKeys");
 
-// Load environment variables
+const cron = require("node-cron");
+const { Account } = require("./accounts/Account.model");
+
 dotenv.config();
+
+// Conexión a la base de datos
+mongoose
+  .connect(process.env.DB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("Conectado a MongoDB");
+  })
+  .catch((err) => {
+    console.error("Error conectando a MongoDB:", err);
+  });
+
+// Resto de tu código...
+cron.schedule("0 0 */30 * *", async () => {
+  try {
+    console.log("Checking and resetting email counts...");
+
+    const accounts = await Account.find();
+
+    for (let account of accounts) {
+      account.emailsSentCount = 0;
+      account.lastEmailSentAt = null;
+      await account.save();
+    }
+
+    console.log("Email counts reset successfully for all accounts.");
+  } catch (error) {
+    console.error("Error resetting email counts:", error);
+  }
+});
 
 // Initialize Express app
 const app = express();
+require("./utils/updatePlans");
 app.use(cookieParser());
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 
 // Middleware
-app.use(bodyParser.json());
 const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl", "https://fidelidappclient.vercel.app"];
-
 const corsOptions = {
-  origin: allowedOrigins, // El dominio de tu cliente en producción
-  credentials: true, // Permite el envío de cookies (credenciales)
+  origin: allowedOrigins,
+  credentials: true,
 };
 
 app.use(cors(corsOptions));
-// Handle preflight requests
 app.options("*", cors());
 
 // Routes
@@ -35,6 +70,7 @@ const plansRoutes = require("./plans/plansRoutes");
 const agendaRoutes = require("./agenda/agendaRoutes");
 const emailRoutes = require("./emailSender/emailRoutes");
 const clientRoutes = require("./clients/clientsRoutes");
+
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -42,6 +78,7 @@ app.use("/accounts/", accountRoutes);
 app.use("/api/agenda/", agendaRoutes);
 app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

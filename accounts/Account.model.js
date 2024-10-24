@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 
+// Definir el esquema para la cuenta
 const accountSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -70,16 +72,13 @@ const accountSchema = new mongoose.Schema({
     enum: ["free", "pro", "premium", "admin"],
   },
   planDetails: {
-    type: Object,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Plan",
   },
   planExpiration: {
     type: Date,
   },
-  accountLogo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Image",
-  },
-  Industry: {
+  industry: {
     type: String,
   },
   activeQr: {
@@ -111,6 +110,40 @@ const accountSchema = new mongoose.Schema({
       },
     },
   ],
+  emailsSentCount: {
+    type: Number,
+    default: 0,
+  },
+  lastEmailSentAt: {
+    type: Date,
+    default: null,
+  },
 });
 
-module.exports = mongoose.model("Account", accountSchema);
+accountSchema.methods.logEmailSent = async function () {
+  try {
+    this.emailsSentCount += 1;
+    this.lastEmailSentAt = Date.now();
+    await this.save();
+  } catch (error) {
+    console.error("Error logging email sent:", error);
+  }
+};
+
+accountSchema.methods.getEmailSentCountLast30Days = async function () {
+  if (this.lastEmailSentAt) {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+    if (this.lastEmailSentAt >= thirtyDaysAgo) {
+      return this.emailsSentCount;
+    }
+  }
+  return 0;
+};
+
+// Crear el modelo de cuenta
+const Account = mongoose.model("Account", accountSchema);
+
+// Exportar el modelo
+module.exports = { Account };

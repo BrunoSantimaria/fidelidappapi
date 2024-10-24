@@ -1,7 +1,7 @@
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
 const Client = require("../promotions/client.model");
-const Account = require("../accounts/Account.model");
+const { Account } = require("../accounts/Account.model");
 const emailSender = require("../utils/emailSender");
 const { handlePromotionRedemption } = require("../utils/handlePromotionRedemption");
 
@@ -19,11 +19,9 @@ exports.createAgenda = async (req, res) => {
     Domingo: 0,
   };
 
-  // Convertir los días a números usando el mapa
   const daysAsNumbers = availableDays.map((day) => daysMap[day]);
 
-  // Ordenar las horas disponibles y agrupar en intervalos continuos
-  const sortedHours = availableHours.sort(); // Ordenar las horas
+  const sortedHours = availableHours.sort();
   const hoursRanges = [];
 
   if (sortedHours.length > 0) {
@@ -33,16 +31,15 @@ exports.createAgenda = async (req, res) => {
       const prev = sortedHours[i - 1];
       const current = sortedHours[i];
 
-      // Si la hora actual no es la hora siguiente a la anterior, se termina el intervalo
       if (current !== addOneHour(prev)) {
         hoursRanges.push({
           start,
           end: prev,
         });
-        start = current; // Comienza un nuevo intervalo
+        start = current;
       }
     }
-    // Añadir el último intervalo
+
     hoursRanges.push({
       start,
       end: sortedHours[sortedHours.length - 1],
@@ -54,7 +51,7 @@ exports.createAgenda = async (req, res) => {
     const date = new Date();
     date.setHours(hours, minutes);
     date.setHours(date.getHours() + 1);
-    return date.toTimeString().substr(0, 5); // Formato "HH:mm"
+    return date.toTimeString().substr(0, 5);
   }
 
   try {
@@ -65,12 +62,11 @@ exports.createAgenda = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Crear la nueva agenda con los valores procesados
     const newAgenda = new Agenda({
       name,
       slots,
       accountId,
-      eventDuration: parseInt(eventDuration), // Convertir la duración a número
+      eventDuration: parseInt(eventDuration),
       availableDays: daysAsNumbers,
       availableHours: hoursRanges,
     });
@@ -88,7 +84,6 @@ exports.getAgendas = async (req, res) => {
   const account = await Account.findOne({ userEmails: email });
 
   try {
-    // Add agenda details to the accounts
     const agendas = await Agenda.find({ accountId: account._id });
     res.status(200).json(agendas);
   } catch (error) {
