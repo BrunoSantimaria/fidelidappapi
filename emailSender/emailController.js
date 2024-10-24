@@ -23,7 +23,7 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
     }
 
     // Reemplazar dinámicamente los valores en la plantilla
-    const personalizedTemplate = template.replace("{nombreCliente}", client.name);
+    const personalizedTemplate = template.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
     const emailData = {
       to: [client.email],
       subject: subject,
