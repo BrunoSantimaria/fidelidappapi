@@ -160,8 +160,8 @@ exports.logout = async (req, res) => {
 
 exports.contact = async (req, res) => {
   try {
-    const { name, email, message } = req.body;
-    const details = name + ": " + message;
+    const { name, email, message, phone, organization } = req.body;
+    const details = email + organization + phone + name + ": " + message;
     const contact = await log.logAction(email, "contact", details);
     res.status(201).json({ message: "Message sent successfully" });
   } catch (error) {
