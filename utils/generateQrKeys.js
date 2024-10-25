@@ -1,5 +1,5 @@
 const cron = require("node-cron");
-const Account = require("../accounts/Account.model"); // Adjust the path according to your structure
+const { Account } = require("../accounts/Account.model"); // Adjust the path according to your structure
 const { v4: uuidv4 } = require("uuid"); // Use uuid to generate unique keys
 const { sendMarketingEmail } = require("../utils/emailSender"); // Adjust the import path as needed
 const qr = require("qrcode");
