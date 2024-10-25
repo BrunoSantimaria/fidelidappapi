@@ -7,24 +7,24 @@ const app = new Slack.App({
   token: process.env.SLACK_BOT_TOKEN,
 });
 
-exports.contact = async (req, res) => {
+const logAction = async (email, action, details) => {
+  console.log("SlackChannel", process.env.SLACK_CHANNEL);
   try {
-    const { name, email, message, phone, organization } = req.body;
+    const log = new Log({ email, action, details });
+    await log.save();
 
-    // Formatear detalles
-    const details = `
-      Nombre: ${name}
-      Email: ${email}
-      Organización: ${organization}
-      Teléfono: ${phone}
-      Mensaje: ${message}
-    `;
+    app.client.chat.postMessage({
+      channel: process.env.SLACK_CHANNEL,
+      text: `Nueva Accion Registrada en Fidelidapp
+        Email ${email} 
+        Accion: ${action} 
+        Detalle: ${details}`,
+    });
 
-    const contact = await log.logAction(email, "contact", details);
-    res.status(201).json({ message: "Mensaje enviado con éxito" });
+    console.log("Action logged:", log);
+    return log;
   } catch (error) {
-    console.error("Error al enviar el mensaje:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error logging action:", error);
   }
 };
 

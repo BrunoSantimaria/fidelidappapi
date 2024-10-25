@@ -161,11 +161,20 @@ exports.logout = async (req, res) => {
 exports.contact = async (req, res) => {
   try {
     const { name, email, message, phone, organization } = req.body;
-    const details = email + organization + phone + name + ": " + message;
+
+    // Formatear detalles
+    const details = `
+      Nombre: ${name}
+      Email: ${email}
+      Organización: ${organization}
+      Teléfono: ${phone}
+      Mensaje: ${message}
+    `;
+
     const contact = await log.logAction(email, "contact", details);
-    res.status(201).json({ message: "Message sent successfully" });
+    res.status(201).json({ message: "Mensaje enviado con éxito" });
   } catch (error) {
-    console.error("Error sending message:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error al enviar el mensaje:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 };
