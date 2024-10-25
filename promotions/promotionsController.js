@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const Promotion = require("./promotions.model");
 const Client = require("./client.model");
 const User = require("../auth/User.model");
-const Account = require("../accounts/Account.model");
+const { Account } = require("../accounts/Account.model");
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const qr = require("qrcode");
@@ -20,12 +20,13 @@ exports.createPromotion = async (req, res) => {
     const email = decoded.email;
 
     const user = await User.findOne({ email });
+    console.log(user);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const account = await Account.findOne({ userEmails: email });
+    const account = await Account.findOne({ userEmails: user.email });
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
