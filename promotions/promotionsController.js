@@ -444,7 +444,7 @@ const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, cl
 
 exports.redeemVisits = async (req, res) => {
   const { clientEmail, promotionId, accountQr } = req.body;
-  console.log(clientEmail, promotionId, accountQr);
+  //console.log(clientEmail, promotionId, accountQr);
 
   if (!promotionId || !clientEmail || !accountQr) {
     return res.status(400).json({ error: "Missing promotion ID or client email" });
@@ -503,6 +503,8 @@ exports.redeemVisits = async (req, res) => {
     promotion.actualVisits += 1;
     promotion.visitDates.push(new Date());
 
+    console.log("Promotion:", promotion);
+
     if (promotion.actualVisits >= existingPromotiondata.visitsRequired) {
       promotion.status = "Pending";
 
@@ -511,7 +513,9 @@ exports.redeemVisits = async (req, res) => {
       const qrCodeBuffer = await QRCode.toBuffer(qrLink);
 
       await sendCompletedPromotionMail(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
-
+      
+      await client.save();
+      log.logAction(clientEmail, "redeemVisits", promotion.title);
       res.status(200).json({ message: "Promotion completed, QR generated", qrCode: qrCodeBuffer.toString("base64"), promotion });
     } else {
       await client.save();
