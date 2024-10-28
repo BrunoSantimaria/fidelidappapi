@@ -442,11 +442,11 @@ const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, cl
 
 exports.redeemVisits = async (req, res) => {
   const { clientEmail, promotionId, accountQr } = req.body;
-  //console.log(req.body);
-  console.log(accountQr);
+
+  console.log(clientEmail, promotionId, accountQr);
 
   if (!promotionId || !clientEmail || !accountQr) {
-    return res.status(400).json({ error: "Missing promotion ID or client email" });
+    return res.status(400).json({ error: "Missing promotion ID or client email or AccountQR" });
   }
 
   const existingPromotiondata = await Promotion.findById(promotionId);

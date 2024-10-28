@@ -164,8 +164,8 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
           <p>${formattedText}</p>
         </div>
         <div class="footer">
-          <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
-          <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+          <p>Powered by FidelidApp.cl</p>
+          <img src="${logoUrl}" alt="FidelidApp Logo" height="50">
         </div>
       </div>
     </body>
@@ -188,4 +188,7 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
     throw error;
   }
 };
+
+
+
 module.exports = { sendMarketingEmail, sendAgendaEmail };

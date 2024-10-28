@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 require("./utils/cronJob");
 require("./utils/generateQrKeys");
+require("./automationRules/automationsCronJob");
 
 const cron = require("node-cron");
 const { Account } = require("./accounts/Account.model");
@@ -70,8 +71,12 @@ const plansRoutes = require("./plans/plansRoutes");
 const agendaRoutes = require("./agenda/agendaRoutes");
 const emailRoutes = require("./emailSender/emailRoutes");
 const clientRoutes = require("./clients/clientsRoutes");
+
 const eventRoutes = require("./events/eventsRoutes");
 const mercadopagoRoutes = require("./mercadopago/mercadopagoRoutes");
+
+const automationRulesRoutes = require("./automationRules/automationRulesRoutes");
+
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -79,9 +84,12 @@ app.use("/accounts/", accountRoutes);
 app.use("/api/agenda/", agendaRoutes);
 app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
+
 app.use("/events", eventRoutes);
 app.use("/api/mercadopago", mercadopagoRoutes);
-// Error handling middleware
+
+app.use("/api/automationRules", automationRulesRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send("Something went wrong!");

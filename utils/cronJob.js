@@ -83,6 +83,6 @@ const updateAppointmentStatus = async () => {
 };
 
 //cron.schedule('*/5 * * * * *', updateAppointmentStatus); // Cada 5 segundo
-cron.schedule("* */30 * * *", updateAppointmentStatus); // Cada 30 minutos
+cron.schedule("*/30 * * * *", updateAppointmentStatus); // Cada 30 minutos
 
 module.exports = { updateAppointmentStatus };
