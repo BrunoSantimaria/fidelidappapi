@@ -171,7 +171,7 @@ exports.contact = async (req, res) => {
       Mensaje: ${message}
     `;
 
-    const contact = await log.logAction(email, "contact", details);
+    const contact = await log.logAction(email, "contact", details, SlackChannel = '#leads');
     res.status(201).json({ message: "Mensaje enviado con éxito" });
   } catch (error) {
     console.error("Error al enviar el mensaje:", error);
