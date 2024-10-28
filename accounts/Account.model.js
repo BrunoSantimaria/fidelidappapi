@@ -94,22 +94,24 @@ const accountSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  socialMedia: [
-    {
-      instagram: {
-        type: String,
-        default: "",
-      },
-      facebook: {
-        type: String,
-        default: "",
-      },
-      whatsapp: {
-        type: String,
-        default: "",
-      },
+  avatar: {
+    type: String,
+    default: "",
+  },
+  socialMedia: {
+    instagram: {
+      type: String,
+      default: "",
     },
-  ],
+    facebook: {
+      type: String,
+      default: "",
+    },
+    whatsapp: {
+      type: String,
+      default: "",
+    },
+  },
   emailsSentCount: {
     type: Number,
     default: 0,

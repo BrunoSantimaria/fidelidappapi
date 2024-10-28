@@ -9,6 +9,7 @@ const qr = require("qrcode");
 const fs = require("fs");
 const mongoose = require("mongoose");
 const QRCode = require("qrcode");
+const { sendSSEMessageToClient } = require("../events/eventController.js");
 
 const log = require("../logger/logger.js");
 const { StrToObjectId } = require("../utils/StrToObjectId.js");
@@ -164,7 +165,6 @@ exports.getPromotionById = async (req, res) => {
     }
 
     const account = await Account.findOne({ owner: StrToObjectId(promotion.userID.toString()) });
-    console.log("Account found:", account);
 
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
@@ -302,10 +302,8 @@ exports.addClientToPromotion = async (req, res) => {
     await client.save();
     await account.save();
 
-    await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title);
-
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
-
+    sendSSEMessageToClient(account._id, { message: `Un cliente se registró a la promoción ${existingPromotiondata.title}`, clientEmail });
     res.status(201).json({ message: "Client added to promotion successfully", client });
   } catch (error) {
     console.error("Error adding client to promotion:", error);
@@ -444,7 +442,8 @@ const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, cl
 
 exports.redeemVisits = async (req, res) => {
   const { clientEmail, promotionId, accountQr } = req.body;
-  //console.log(clientEmail, promotionId, accountQr);
+  //console.log(req.body);
+  console.log(accountQr);
 
   if (!promotionId || !clientEmail || !accountQr) {
     return res.status(400).json({ error: "Missing promotion ID or client email" });
@@ -513,7 +512,7 @@ exports.redeemVisits = async (req, res) => {
       const qrCodeBuffer = await QRCode.toBuffer(qrLink);
 
       await sendCompletedPromotionMail(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
-      
+
       await client.save();
       log.logAction(clientEmail, "redeemVisits", promotion.title);
       res.status(200).json({ message: "Promotion completed, QR generated", qrCode: qrCodeBuffer.toString("base64"), promotion });

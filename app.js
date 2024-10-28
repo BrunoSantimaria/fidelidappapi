@@ -70,7 +70,8 @@ const plansRoutes = require("./plans/plansRoutes");
 const agendaRoutes = require("./agenda/agendaRoutes");
 const emailRoutes = require("./emailSender/emailRoutes");
 const clientRoutes = require("./clients/clientsRoutes");
-
+const eventRoutes = require("./events/eventsRoutes");
+const mercadopagoRoutes = require("./mercadopago/mercadopagoRoutes");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -78,7 +79,8 @@ app.use("/accounts/", accountRoutes);
 app.use("/api/agenda/", agendaRoutes);
 app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
-
+app.use("/events", eventRoutes);
+app.use("/api/mercadopago", mercadopagoRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -86,13 +88,13 @@ app.use((err, req, res, next) => {
 });
 
 // Middleware para redirigir de HTTP a HTTPS
-app.use((req, res, next) => {
-  if (req.protocol === "http") {
-    console.log("Redirecting HTTP request to HTTPS");
-    return res.redirect(301, `https://${req.headers.host}${req.url}`);
-  }
-  next();
-});
+// app.use((req, res, next) => {
+//   if (req.protocol === "http") {
+//     console.log("Redirecting HTTP request to HTTPS");
+//     return res.redirect(301, `https://${req.headers.host}${req.url}`);
+//   }
+//   next();
+// });
 
 // Middleware para redirigir de fidelidapp.cl a www.fidelidapp.cl
 app.use((req, res, next) => {
