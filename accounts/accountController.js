@@ -1,9 +1,34 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
-const Account = require("./Account.model");
+const { Account } = require("./Account.model");
 const { generateQr, sendRefreshQr } = require("../utils/generateQrKeys");
 const chalk = require("chalk");
+const multer = require("multer");
+const { Storage } = require("@google-cloud/storage");
+const path = require("path");
+
+// Decode Base64-encoded service account key
+const base64Credentials = process.env.GOOGLE_CREDENTIALS_BASE64;
+
+if (!base64Credentials) {
+  throw new Error("GOOGLE_CREDENTIALS_BASE64 environment variable is not set");
+}
+
+const jsonCredentials = Buffer.from(base64Credentials, "base64").toString("utf-8");
+const serviceAccountKey = JSON.parse(jsonCredentials);
+
+const storage = new Storage({
+  credentials: serviceAccountKey,
+});
+
+const bucket = storage.bucket("fapp_promotion_images");
+
+const upload = multer({
+  storage: multer.memoryStorage(), // Usamos memoryStorage para obtener el buffer
+});
+
+// Añadir un usuario a la cuenta
 const addUserToAccount = async (req, res) => {
   console.log("Adding User to account");
   try {
@@ -12,11 +37,9 @@ const addUserToAccount = async (req, res) => {
     const ownerId = decoded.id;
 
     const { email } = req.body;
-
     const { accountId } = req.params;
 
     const account = await Account.findById(accountId);
-
     console.log("Account", account);
 
     if (!account) {
@@ -40,6 +63,7 @@ const addUserToAccount = async (req, res) => {
   }
 };
 
+// Refrescar el código QR de la cuenta
 const refreshQr = async (req, res) => {
   console.log("Refreshing QR keys");
   console.log(req.body);
@@ -60,7 +84,7 @@ const refreshQr = async (req, res) => {
   }
 };
 
-//! En proceso
+// Guardar la configuración de la cuenta
 const saveAccountSettings = async (req, res) => {
   console.log(chalk.green("Saving account settings"));
   try {
@@ -78,5 +102,95 @@ const saveAccountSettings = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-//! -----------
-module.exports = { addUserToAccount, refreshQr, saveAccountSettings };
+
+// Subida de archivos (logo)
+const fileUpload = async (req, res, next) => {
+  console.log(req.body);
+
+  upload.single("logo")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (!req.file) {
+      return next();
+    }
+
+    try {
+      const blob = bucket.file(`${Date.now()}-${req.file.originalname}`);
+      const blobStream = blob.createWriteStream({
+        resumable: false,
+        contentType: req.file.mimetype,
+      });
+
+      blobStream.on("error", (err) => {
+        console.error(err);
+        return res.status(500).send({ message: "Failed to upload to GCP" });
+      });
+
+      blobStream.on("finish", async () => {
+        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+        req.body.imageUrl = publicUrl; // Almacena la URL pública en req.body
+        next(); // Llama al siguiente middleware
+      });
+
+      blobStream.end(req.file.buffer); // Cargar el buffer del archivo
+    } catch (error) {
+      console.error("Internal server error:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+};
+
+// Personalizar la cuenta con redes sociales y logo
+const customizeAccount = async (req, res) => {
+  try {
+    const { socialMedia, accountId, imageUrl } = req.body;
+
+    let parsedSocialMedia;
+    if (typeof socialMedia === "string") {
+      parsedSocialMedia = JSON.parse(socialMedia);
+    } else {
+      parsedSocialMedia = socialMedia;
+    }
+
+    console.log(accountId, parsedSocialMedia, imageUrl);
+    const account = await Account.findById(accountId);
+
+    if (!account) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    // Asegúrate de que socialMedia tenga propiedades inicializadas
+    account.socialMedia = account.socialMedia || {
+      instagram: "",
+      facebook: "",
+      whatsapp: "",
+    };
+
+    // Actualiza las propiedades de socialMedia
+    if (parsedSocialMedia && typeof parsedSocialMedia === "object") {
+      account.socialMedia.instagram = parsedSocialMedia.instagram || account.socialMedia.instagram;
+      account.socialMedia.facebook = parsedSocialMedia.facebook || account.socialMedia.facebook;
+      account.socialMedia.whatsapp = parsedSocialMedia.whatsapp || account.socialMedia.whatsapp;
+    }
+
+    // Actualiza logo si se proporciona imageUrl
+    if (imageUrl) {
+      account.logo = imageUrl;
+    }
+
+    await account.save(); // Guarda los cambios en la base de datos
+
+    return res.status(200).json({
+      message: "Customization updated successfully",
+      imageUrl: imageUrl,
+      socialMedia: account.socialMedia, // Retorna el socialMedia actualizado
+    });
+  } catch (error) {
+    console.error("Error customizing account:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = { addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload };
