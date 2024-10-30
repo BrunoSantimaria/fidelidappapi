@@ -151,7 +151,6 @@ exports.getPromotionById = async (req, res) => {
   let token = req.headers.authorization?.split(" ")[1];
   if (token) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     req.name = decoded.name;
     req.email = decoded.email;
     req.userid = decoded.id;
@@ -312,6 +311,7 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 exports.getClientPromotion = async (req, res) => {
+
   const clientId = req.params.cid;
   const promotionId = req.params.pid;
 
@@ -329,6 +329,16 @@ exports.getClientPromotion = async (req, res) => {
     //.populate('imageID');
 
     // const imageUrl = `data:${promotionDetails.imageID.contentType};base64,${promotionDetails.imageID.data}`;
+
+    //Check end date of promotion andcompare to current date
+    const currentDate = new Date();
+    const promotionEndDate = new Date(promotion.endDate);
+
+    if (currentDate > promotionEndDate) {
+      promotion.status = "Expired";
+      client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId).status = "Expired";
+      await client.save();
+    }
 
     // Create response from promotion and client
     const response = {
@@ -621,9 +631,9 @@ exports.restartPromotion = async (req, res) => {
     }
 
     //Validate if actual visists is equal to visits required
-    if (promotion.actualVisits !== existingPromotiondata.visitsRequired) {
-      return res.status(400).json({ error: "Actual visits is not equal to visits required" });
-    }
+    // if (promotion.actualVisits !== existingPromotiondata.visitsRequired) {
+    //   return res.status(400).json({ error: "Actual visits is not equal to visits required" });
+    // }
 
     // Update the promotion data
 
