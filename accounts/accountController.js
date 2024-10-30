@@ -2,12 +2,15 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const { Account } = require("./Account.model");
+const User = require("../auth/User.model");
 const { generateQr, sendRefreshQr } = require("../utils/generateQrKeys");
 const chalk = require("chalk");
 const multer = require("multer");
 const { Storage } = require("@google-cloud/storage");
 const path = require("path");
-
+const axios = require("axios");
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // Decode Base64-encoded service account key
 const base64Credentials = process.env.GOOGLE_CREDENTIALS_BASE64;
 
@@ -170,9 +173,9 @@ const customizeAccount = async (req, res) => {
 
     // Actualiza las propiedades de socialMedia
     if (parsedSocialMedia && typeof parsedSocialMedia === "object") {
-      account.socialMedia.instagram = parsedSocialMedia.instagram || account.socialMedia.instagram;
-      account.socialMedia.facebook = parsedSocialMedia.facebook || account.socialMedia.facebook;
-      account.socialMedia.whatsapp = parsedSocialMedia.whatsapp || account.socialMedia.whatsapp;
+      account.socialMedia.instagram = parsedSocialMedia.instagram || "";
+      account.socialMedia.facebook = parsedSocialMedia.facebook || "";
+      account.socialMedia.whatsapp = parsedSocialMedia.whatsapp || "";
     }
 
     // Actualiza logo si se proporciona imageUrl
@@ -192,5 +195,93 @@ const customizeAccount = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+const createSubuser = async (subuserData) => {
+  try {
+    const response = await axios.post("https://api.sendgrid.com/v3/subusers", subuserData, {
+      headers: {
+        Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+    return response.data; // Retorna la información del subusuario creado
+  } catch (error) {
+    console.error("Error creating subuser:", error.response?.data || error.message);
+    throw new Error("Failed to create subuser");
+  }
+};
+const createVerifiedSenderForSubuser = async (subuserId, senderData) => {
+  try {
+    const response = await axios.post(
+      `https://api.sendgrid.com/v3/verified_senders`,
+      {
+        ...senderData,
+        subuser_id: subuserId, // Especifica el subusuario
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    return response.data; // Retorna información del remitente verificado creado
+  } catch (error) {
+    console.error("Error sending verification email to SendGrid:", error.response?.data || error.message);
+    throw new Error("Error sending verification email");
+  }
+};
+const updateAccount = async (req, res) => {
+  try {
+    const { accountId, settings } = req.body;
+    console.log(req.body);
 
-module.exports = { addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload };
+    if (!accountId) {
+      return res.status(400).json({ error: "Account ID is required." });
+    }
+
+    const account = await Account.findById(accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (settings.senderEmail) {
+      // Crear subusuario
+      const subuserData = {
+        username: account.name, // Nombre del subusuario
+        email: settings.senderEmail, // Correo del subusuario
+        password: "PasswordSecure", // Genera una contraseña segura
+        // Otros campos necesarios
+      };
+
+      const subuser = await createSubuser(subuserData);
+
+      // Datos para el remitente verificado
+      const senderData = {
+        from_email: settings.senderEmail,
+        from_name: account.name || "Nombre del negocio",
+        reply_to: settings.senderEmail,
+        nickname: account.name,
+        address: "Dirección del negocio",
+        city: "Ciudad",
+        state: "CL",
+        zip: "123456",
+        country: "Chile",
+      };
+
+      // Crear el remitente verificado para el subusuario
+      await createVerifiedSenderForSubuser(subuser.id, senderData);
+    }
+
+    // Actualizar otros campos de la cuenta
+    if (settings.phone) account.phone = settings.phone;
+    if (settings.name) account.name = settings.name;
+    await account.save();
+
+    res.status(200).json({ message: "Account settings saved" });
+  } catch (error) {
+    console.error("Error saving account settings:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+module.exports = { addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload, updateAccount };

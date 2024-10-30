@@ -19,6 +19,9 @@ const accountSchema = new mongoose.Schema({
       type: String,
     },
   ],
+  subscriptionId: {
+    type: String,
+  },
   clients: [
     {
       id: mongoose.Schema.Types.ObjectId,
@@ -71,12 +74,12 @@ const accountSchema = new mongoose.Schema({
     default: "free",
     enum: ["free", "pro", "premium", "admin"],
   },
-  planDetails: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Plan",
-  },
   planExpiration: {
     type: Date,
+  },
+  isActive: {
+    type: Boolean,
+    default: false,
   },
   industry: {
     type: String,
@@ -120,8 +123,25 @@ const accountSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  expirationDate: {
+    type: Date,
+    default: null,
+  },
+  phone: {
+    type: String,
+    default: "",
+  },
+  senderEmail: {
+    type: String,
+    default: "",
+  },
+  name: {
+    type: String,
+    default: "",
+  },
 });
 
+// Método para registrar un email enviado
 accountSchema.methods.logEmailSent = async function () {
   try {
     this.emailsSentCount += 1;
@@ -132,6 +152,7 @@ accountSchema.methods.logEmailSent = async function () {
   }
 };
 
+// Método para obtener la cantidad de emails enviados en los últimos 30 días
 accountSchema.methods.getEmailSentCountLast30Days = async function () {
   if (this.lastEmailSentAt) {
     const now = new Date();
@@ -144,8 +165,13 @@ accountSchema.methods.getEmailSentCountLast30Days = async function () {
   return 0;
 };
 
-// Crear el modelo de cuenta
+accountSchema.methods.updatePlan = async function (plan, expirationDate) {
+  this.planStatus = plan;
+  this.planExpiration = expirationDate;
+  this.isActive = expirationDate > new Date();
+  await this.save();
+};
+
 const Account = mongoose.model("Account", accountSchema);
 
-// Exportar el modelo
 module.exports = { Account };
