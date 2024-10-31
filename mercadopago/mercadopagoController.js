@@ -8,51 +8,84 @@ const client = new MercadoPagoConfig({
 });
 const BASE_URL = process.env.BASE_URL;
 // Controlador para crear una preferencia de pago recurrente
+const createPreapproval = async () => {
+  try {
+    const preapprovalData = {
+      reason: "Plan Pro",
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: "months",
+        repetitions: 12,
+        billing_day: 10,
+        billing_day_proportional: true,
+        transaction_amount: 15,
+        currency_id: "ARS",
+      },
+      payment_methods_allowed: {
+        payment_types: [
+          { id: "credit_card" }, // Agrega "credit_card" para permitir pagos con tarjeta
+          { id: "debit_card" }, // Opcionalmente, puedes incluir también "debit_card"
+        ],
+        payment_methods: [], // Deja esto vacío si quieres permitir todas las tarjetas
+      },
+      back_url: "https://google.com.ar",
+    };
+
+    const resp = await axios.post(`https://api.mercadopago.com/preapproval_plan`, preapprovalData, {
+      headers: {
+        Authorization: `Bearer APP_USR-1706813158335899-102914-67bc9a1f0eb0800468ada971bb9a408d-2064050259`,
+      },
+    });
+    console.log(resp.data.id);
+
+    return resp.data.id;
+  } catch (error) {
+    console.error("Error creating preapproval:", error);
+    throw new Error("Failed to create preapproval");
+  }
+};
 
 const createPreference = async (req, res) => {
   try {
     const { title, description, price, email, accountId, items } = req.body;
 
-    // Configuración de la preferencia de pago
+    // Crear la preferencia de pago
     const preferenceData = {
       items: [
         {
-          title: title,
-          description: description,
+          title,
+          description,
           quantity: Number(items[0].quantity),
           currency_id: "ARS",
           unit_price: Number(items[0].price),
         },
       ],
       back_urls: {
-        success: `${BASE_URL}/payment/callback`, // URL a la que se redirigirá tras el pago
-        failure: `${BASE_URL}/payment/callback`, // URL en caso de fallo
-        pending: `${BASE_URL}/payment/callback`, // URL en caso de pago pendiente
+        success: `${BASE_URL}/payment/callback`,
+        failure: `${BASE_URL}/payment/callback`,
+        pending: `${BASE_URL}/payment/callback`,
       },
       auto_return: "approved",
-      payer: {
-        email: email,
-      },
-      metadata: {
-        accountId: accountId, // Guardar el ID de la cuenta en los metadatos
-      },
+      payer: { email },
+      metadata: { accountId },
     };
 
     const preference = new Preference(client);
     const result = await preference.create({ body: preferenceData });
 
-    // Guardar el ID de la preferencia en tu base de datos
-    await Account.updateOne(
-      { _id: accountId },
-      { $set: { paymentPreferenceId: result.id, planStatus: "pending" } } // Guarda el ID de la preferencia
-    );
+    // Crear la preaprobación y obtener su ID
+    const subscriptionId = await createPreapproval();
 
-    res.status(200).json({ id: result.id }); // Retorna el ID de la preferencia
+    // Guardar el ID de la preferencia y el de la suscripción en la cuenta
+    await Account.updateOne({ _id: accountId }, { $set: { preferenceId: result.id, subscriptionId: subscriptionId } });
+
+    res.status(200).json({ id: result.id, subscriptionId: subscriptionId }); // Retorna el ID de la preferencia
   } catch (error) {
     console.error("Error al crear la preferencia:", error);
     res.status(500).json({ error: "Error al crear la preferencia" });
   }
 };
+
 const paymentCallback = async (req, res) => {
   try {
     const { collection_id, preference_id } = req.query; // Obtener los IDs del query params
@@ -88,63 +121,144 @@ const paymentCallback = async (req, res) => {
 };
 // Controlador para verificar el estado de la suscripción
 // Controlador para verificar el estado de la suscripción
-const checkSubscription = async (req, res) => {
+const obtenerPayerId = async (subscriptionId) => {
   try {
-    const { accountId } = req.params;
-    const account = await Account.findById(accountId);
-
-    if (!account) {
-      return res.status(404).json({ message: "Cuenta no encontrada" });
-    }
-
-    // const subscriptionId = account.subscriptionId; // Asegúrate de que esto esté definido
-    // if (!subscriptionId) {
-    //   return res.status(400).json({ message: "ID de suscripción no encontrado" });
-    // }
-
-    // Aquí deberías hacer la llamada a la API para verificar la suscripción
-    const response = await axios.get(`https://api.mercadopago.com/preapproval/search/`, {
+    const response = await axios.get(`https://api.mercadopago.com/preapproval/search`, {
+      params: {
+        preapproval_plan_id: subscriptionId,
+      },
       headers: {
         Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
       },
     });
-    console.log(response.data);
-    const subscription = response.data;
 
-    if (subscription.status === "cancelled") {
-      await Account.updateOne({ _id: accountId }, { planStatus: "free", isActive: false, planExpiration: null });
-      return res.json({ message: "Tu plan ha expirado y ahora estás en el plan Free" });
+    const subscriptions = response.data.results;
+
+    if (subscriptions.length > 0) {
+      const payerId = subscriptions[0].payer_id;
+      return payerId;
+    } else {
+      console.log("No se encontraron suscripciones para el preapproval_plan_id proporcionado.");
+      return null;
     }
-
-    res.json({
-      message: `Tienes el plan ${subscription.status} activo`, // Cambia según el campo correcto
-      expirationDate: subscription.expiration_date, // Cambia según el campo correcto
-    });
   } catch (error) {
-    console.error("Error al verificar la suscripción:", error.response.data);
-    res.status(500).json({ error: "Error al verificar la suscripción" });
+    console.error("Error al obtener el payer_id:", error.response?.data || error.message);
+    return null;
   }
 };
 
-// Controlador para cancelar la suscripción
-const cancelSubscription = async (req, res) => {
+// Función checkSubscription actualizada
+const cancelActiveSubscriptions = async (subscriptions) => {
+  const cancelPromises = subscriptions.map(async (subscription) => {
+    const subscriptionId = subscription.id; // ID de la suscripción a cancelar
+    const response = await axios.put(
+      `https://api.mercadopago.com/preapproval/${subscriptionId}/`,
+      { status: "cancelled" },
+      {
+        headers: {
+          Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+        },
+      }
+    );
+    return response.data; // Devuelve la respuesta de la API para cada cancelación
+  });
+
+  return Promise.all(cancelPromises); // Espera a que se completen todas las cancelaciones
+};
+
+// Endpoint para cancelar suscripciones
+const cancelSubscriptions = async (req, res) => {
+  console.log(req.body);
+  const { accountId } = req.body; // Recibimos accountId del cuerpo de la solicitud
+
   try {
-    const { accountId } = req.body;
     const account = await Account.findById(accountId);
 
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
 
-    const subscriptionId = account.subscriptionId; // Suponiendo que el ID de suscripción se guarda en la cuenta
-    await client.subscriptions.cancel(subscriptionId); // Llamada a la API para cancelar la suscripción
+    const payerId = await obtenerPayerId(account.subscriptionId);
 
-    await Account.updateOne({ _id: accountId }, { isActive: false, planStatus: "cancelled" });
+    if (!payerId) {
+      return res.status(404).json({ message: "No se encontró el payer_id asociado." });
+    }
 
-    res.json({ message: "Suscripción cancelada. Podrás usar el servicio hasta que expire el tiempo restante." });
+    const response = await axios.get(`https://api.mercadopago.com/preapproval/search?payer_id=${payerId}`, {
+      headers: {
+        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+      },
+    });
+
+    const subscriptions = response.data.results;
+
+    // Asegúrate de que subscriptions sea un array
+    console.log("Subscriptions:", subscriptions);
+
+    // Filtrar suscripciones autorizadas
+    const activeSubscriptions = subscriptions.filter((sub) => sub.status === "authorized");
+
+    console.log("Active Subscriptions:", activeSubscriptions);
+
+    if (Array.isArray(activeSubscriptions) && activeSubscriptions.length > 0) {
+      // Cancelar todas las suscripciones activas
+      const cancelResults = await cancelActiveSubscriptions(activeSubscriptions);
+      console.log("Cancelación de suscripciones:", cancelResults);
+
+      // Actualiza la cuenta a 'free'
+      await Account.updateOne({ _id: accountId }, { planStatus: "free", isActive: false, planExpiration: null });
+
+      return res.status(200).json({ message: "Todas las suscripciones han sido canceladas.", cancelResults });
+    } else {
+      return res.status(200).json({ message: "No hay suscripciones activas para cancelar." });
+    }
   } catch (error) {
-    console.error("Error al cancelar la suscripción:", error);
-    res.status(500).json({ error: "Error al cancelar la suscripción" });
+    console.error("Error en el endpoint /api/mercadopago/cancel_subscription:", error);
+    return res.status(500).json({ message: "Error al verificar y cancelar las suscripciones." });
+  }
+};
+const checkSubscription = async (req, res) => {
+  const { accountId } = req.params;
+
+  try {
+    const account = await Account.findById(accountId);
+
+    if (!account) {
+      return res.status(404).json({ message: "Cuenta no encontrada" });
+    }
+
+    // Obtener payer_id usando la función obtenerPayerId
+    const payerId = await obtenerPayerId(account.subscriptionId);
+
+    if (!payerId) {
+      return res.status(404).json({ message: "No se encontró el payer_id asociado." });
+    }
+
+    const response = await axios.get(`https://api.mercadopago.com/preapproval/search?payer_id=${payerId}`, {
+      headers: {
+        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
+      },
+    });
+
+    const subscriptions = response.data.results;
+
+    // Filtrar suscripciones autorizadas
+    const activeSubscriptions = subscriptions.filter((sub) => sub.status === "authorized");
+
+    if (activeSubscriptions.length > 0) {
+      // Cancelar todas las suscripciones activas
+      const cancelResults = await cancelSubscriptions(activeSubscriptions);
+
+      // Actualiza la cuenta a 'free' ya que todas las suscripciones han sido canceladas
+      await Account.updateOne({ _id: accountId }, { planStatus: "free", isActive: false, planExpiration: null });
+
+      return res.status(200).json({ message: "Todas las suscripciones han sido canceladas.", cancelResults });
+    } else {
+      return res.status(200).json({ message: "No hay suscripciones activas para cancelar." });
+    }
+  } catch (error) {
+    console.error("Error en checkSubscription:", error);
+    return res.status(500).json({ message: "Error al verificar las suscripciones." });
   }
 };
 
@@ -323,7 +437,7 @@ const offerFreeTrial = async (req, res) => {
 module.exports = {
   createPreference,
   checkSubscription,
-  cancelSubscription,
+
   modifySubscriptionAmount,
   modifyPrimaryCard,
   modifySecondaryPaymentMethod,
@@ -333,4 +447,5 @@ module.exports = {
   setProportionalAmount,
   offerFreeTrial,
   paymentCallback,
+  cancelSubscriptions,
 };

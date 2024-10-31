@@ -72,7 +72,7 @@ const agendaRoutes = require("./agenda/agendaRoutes");
 const emailRoutes = require("./emailSender/emailRoutes");
 const clientRoutes = require("./clients/clientsRoutes");
 const automationRulesRoutes = require("./automationRules/automationRulesRoutes");
-
+const mercadoPagoRoutes = require("./mercadopago/mercadopagoRoutes");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -81,7 +81,7 @@ app.use("/api/agenda/", agendaRoutes);
 app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/automationRules", automationRulesRoutes);
-
+app.use("/api/mercadopago", mercadoPagoRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

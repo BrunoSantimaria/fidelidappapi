@@ -203,20 +203,28 @@ const createSubuser = async (subuserData) => {
         "Content-Type": "application/json",
       },
     });
-    return response.data; // Retorna la información del subusuario creado
+    return response.data;
   } catch (error) {
     console.error("Error creating subuser:", error.response?.data || error.message);
     throw new Error("Failed to create subuser");
   }
 };
-const createVerifiedSenderForSubuser = async (subuserId, senderData) => {
+const createVerifiedSenderForSubuser = async (clientData) => {
   try {
+    const senderData = {
+      from_email: clientData.from_email, // Tu correo para recibir el enlace de verificación
+      from_name: clientData.from_name,
+      reply_to: clientData.reply_to,
+      nickname: clientData.nickname,
+      address: clientData.address,
+      city: clientData.city,
+      country: clientData.country,
+      postalCode: clientData.postalCode,
+    };
+
     const response = await axios.post(
       `https://api.sendgrid.com/v3/verified_senders`,
-      {
-        ...senderData,
-        subuser_id: subuserId, // Especifica el subusuario
-      },
+      { ...senderData },
       {
         headers: {
           Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
@@ -224,7 +232,9 @@ const createVerifiedSenderForSubuser = async (subuserId, senderData) => {
         },
       }
     );
-    return response.data; // Retorna información del remitente verificado creado
+
+    console.log("Verification email sent to your inbox. Complete verification to enable sender.");
+    return response.data;
   } catch (error) {
     console.error("Error sending verification email to SendGrid:", error.response?.data || error.message);
     throw new Error("Error sending verification email");
@@ -253,8 +263,6 @@ const updateAccount = async (req, res) => {
         // Otros campos necesarios
       };
 
-      const subuser = await createSubuser(subuserData);
-
       // Datos para el remitente verificado
       const senderData = {
         from_email: settings.senderEmail,
@@ -269,7 +277,7 @@ const updateAccount = async (req, res) => {
       };
 
       // Crear el remitente verificado para el subusuario
-      await createVerifiedSenderForSubuser(subuser.id, senderData);
+      await createVerifiedSenderForSubuser(senderData);
     }
 
     // Actualizar otros campos de la cuenta
