@@ -311,6 +311,7 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 exports.getClientPromotion = async (req, res) => {
+
   const clientId = req.params.cid;
   const promotionId = req.params.pid;
 
