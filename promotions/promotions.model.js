@@ -54,6 +54,10 @@ const promotionSchema = new mongoose.Schema({
   visitsPerDay: {
     type: Object,
   },
+  pointSystem: { // Point system for the promotion, makes the visits redemption possible at any moment
+    type: Boolean,
+    default: false,
+  },
 });
 
 const Promotion = mongoose.model("Promotion", promotionSchema);

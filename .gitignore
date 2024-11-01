@@ -10,4 +10,4 @@ node_modules/
 # Ignore uploads folder
 /uploads
 
-node.js
+/scripts
