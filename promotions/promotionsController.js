@@ -340,6 +340,18 @@ exports.getClientPromotion = async (req, res) => {
       await client.save();
     }
 
+    //Compare actual visits with requiered visits
+    const requiredVisits = promotionDetails.visitsRequired;
+    const actualVisits = promotion.actualVisits
+    
+    console.log(actualVisits, requiredVisits)
+
+    if (actualVisits >= requiredVisits) {
+      promotion.status = "Pending";
+      client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId).status = "Pending";
+      await client.save();
+    }
+
     // Create response from promotion and client
     const response = {
       promotion: promotion,
@@ -644,6 +656,7 @@ exports.restartPromotion = async (req, res) => {
       promotion.addedDate = new Date();
       promotion.endDate = new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000); // Add promotion duration in milliseconds
       promotion.lastRedeemDate = new Date();
+      promotion.redeemCount = (promotion.redeemCount || 0) + 1;
     }
 
     // Save the updated client document
