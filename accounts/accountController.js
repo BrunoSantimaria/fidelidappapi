@@ -259,7 +259,7 @@ const updateAccount = async (req, res) => {
     if (settings.senderEmail) {
       const senderData = {
         from_email: settings.senderEmail,
-        from_name: settings.name || "Nombre del negocio",
+        from_name: account.name || "Nombre del negocio",
         reply_to: settings.senderEmail,
         nickname: account.name,
         address: "Dirección del negocio",
