@@ -139,6 +139,10 @@ const accountSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  activePayer: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Método para registrar un email enviado
@@ -168,7 +172,7 @@ accountSchema.methods.getEmailSentCountLast30Days = async function () {
 accountSchema.methods.updatePlan = async function (plan, expirationDate) {
   this.planStatus = plan;
   this.planExpiration = expirationDate;
-  this.isActive = expirationDate > new Date();
+  this.activePayer = true;
   await this.save();
 };
 

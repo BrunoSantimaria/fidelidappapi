@@ -39,7 +39,7 @@ async function updatePlans() {
           clientLimit: {
             $switch: {
               branches: [
-                { case: { $eq: ["$planStatus", "free"] }, then: 500 },
+                { case: { $eq: ["$planStatus", "free"] }, then: 250 },
                 { case: { $eq: ["$planStatus", "pro"] }, then: null },
                 { case: { $eq: ["$planStatus", "admin"] }, then: null },
               ],
