@@ -326,9 +326,6 @@ exports.getClientPromotion = async (req, res) => {
     }
 
     const promotionDetails = await Promotion.findById(promotionId);
-    //.populate('imageID');
-
-    // const imageUrl = `data:${promotionDetails.imageID.contentType};base64,${promotionDetails.imageID.data}`;
 
     //Check end date of promotion andcompare to current date
     const currentDate = new Date();
@@ -337,18 +334,6 @@ exports.getClientPromotion = async (req, res) => {
     if (currentDate > promotionEndDate) {
       promotion.status = "Expired";
       client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId).status = "Expired";
-      await client.save();
-    }
-
-    //Compare actual visits with requiered visits
-    const requiredVisits = promotionDetails.visitsRequired;
-    const actualVisits = promotion.actualVisits
-    
-    console.log(actualVisits, requiredVisits)
-
-    if (actualVisits >= requiredVisits) {
-      promotion.status = "Pending";
-      client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId).status = "Pending";
       await client.save();
     }
 
@@ -549,6 +534,7 @@ exports.redeemVisits = async (req, res) => {
   }
 };
 
+//See if we need to reduce the redeem with points ?? 
 exports.redeemPromotionByQRCode = async (req, res) => {
   const { clientEmail, promotionId } = req.body;
   console.log(clientEmail, promotionId);
@@ -567,9 +553,19 @@ exports.redeemPromotionByQRCode = async (req, res) => {
       return res.status(400).json({ error: "Promotion already completed or expired" });
     }
 
-    promotion.status = "Redeemed";
-    promotion.redeemCount = (promotion.redeemCount || 0) + 1;
+    //Find the promotion in the client array and update the status actual visits and redeem count
+    client.addedpromotions = client.addedpromotions.map((p) => {
+      if (p.promotion.toString() === promotionId) {
+        p.actualVisits = 0;
+        p.redeemCount = (p.redeemCount || 0) + 1;
+        p.status = "Redeemed";
+      }
+      return p;
+    });
+
     await client.save();
+
+    console.log("Client:", client);
 
     res.status(200).json({ message: "Promotion completed successfully" });
   } catch (error) {
@@ -577,6 +573,7 @@ exports.redeemPromotionByQRCode = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 exports.deletePromotion = async (req, res) => {
   const promotionId = req.params.id;
   if (!promotionId) {
@@ -599,7 +596,54 @@ exports.restartPromotion = async (req, res) => {
   const { promotionId, clientEmail } = req.body;
 
   if (!promotionId || !clientEmail) {
-    return res.status(400).json({ error: "Missing promotion ID or client email" });
+    return res.status(400).json({ error: "Missing promotion ID, or client email" });
+  }
+
+  try {
+    // Find the promotion details
+    const existingPromotiondata = await Promotion.findById(promotionId);
+    if (!existingPromotiondata) {
+      return res.status(404).json({ error: "Promotion details not found" });
+    }
+    if (existingPromotiondata.promotionRecurrent === "False") {
+      res.status(400).json({ error: "La promoción no es recurrente!" })
+    }
+
+    // Find the client by email
+    let client = await Client.findOne({ email: clientEmail });
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    // Find the promotion in the client's addedpromotions array
+    const promotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
+
+    if (!promotion) {
+      return res.status(404).json({ error: "Promotion not found for this client" });
+    }
+
+    // Reset promotion details if the promotion is reccurent
+    promotion.status = "Active";
+    promotion.actualVisits = 0;
+    promotion.addedDate = new Date();
+    promotion.endDate = new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000); // Add promotion duration in milliseconds
+
+    // Save the updated client document
+    await client.save();
+    log.logAction(clientEmail, "restartPromotion", promotion.title);
+
+    res.status(200).json({ message: "Promotion restarted successfully", client });
+  } catch (error) {
+    console.error("Error restarting promotion:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.redeemPromotion = async (req, res) => {
+  const { promotionId, clientEmail, pointsToRedeem } = req.body;
+
+  if (!promotionId || !clientEmail || !pointsToRedeem) {
+    return res.status(400).json({ error: "Missing promotion ID, client email or points to redeem" });
   }
 
   try {
@@ -615,55 +659,33 @@ exports.restartPromotion = async (req, res) => {
       return res.status(404).json({ error: "Client not found" });
     }
 
-    // // Extract email from token and validate that email exists in the account
-    // const token = req.cookies.authToken; // Ensure this is where the token is stored
-    // if (!token) {
-    //   return res.status(401).json({ error: 'No token provided' });
-    // }
-
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // const email = decoded.email; // Assuming the user email is stored in the JWT payload
-
-    // // Search account by existingPromotiondata.userID
-    // const account = await Account.findOne({ owner: existingPromotiondata.userID });
-
-    // if (!account) {
-    //   return res.status(404).json({ error: 'Account not found' });
-    // }
-
-    // if (!account.userEmails.includes(email)) {
-    //   return res.status(401).json({ error: 'Unauthorized user' });
-    // }
-
     // Find the promotion in the client's addedpromotions array
     const promotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
-
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found for this client" });
     }
 
-    //Validate if actual visists is equal to visits required
-    // if (promotion.actualVisits !== existingPromotiondata.visitsRequired) {
-    //   return res.status(400).json({ error: "Actual visits is not equal to visits required" });
-    // }
+    //Validate if the client has enough points
+    if (promotion.actualVisits < pointsToRedeem) {
+      return res.status(400).json({ error: "Not enough points to redeem" });
+    }
 
     // Update the promotion data
-
-    // Reset promotion details if the promotion is reccurent
-    if (existingPromotiondata.promotionRecurrent) {
+    if (existingPromotiondata.promotionRecurrent === "True") {
       promotion.status = "Active";
-      promotion.actualVisits = 0;
-      promotion.addedDate = new Date();
-      promotion.endDate = new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000); // Add promotion duration in milliseconds
+      promotion.actualVisits = promotion.actualVisits - pointsToRedeem;
+      promotion.endDate = new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000);
+      promotion.lastRedeemDate = new Date();
+      promotion.redeemCount = (promotion.redeemCount || 0) + 1;
+    } else {
+      promotion.status = "Redeemed";
       promotion.lastRedeemDate = new Date();
       promotion.redeemCount = (promotion.redeemCount || 0) + 1;
     }
 
-    // Save the updated client document
     await client.save();
     log.logAction(clientEmail, "restartPromotion", promotion.title);
-
-    res.status(200).json({ message: "Promotion restarted successfully", client });
+    res.status(200).json({ message: "Promotion redeemed successfully", client });
   } catch (error) {
     console.error("Error restarting promotion:", error);
     res.status(500).json({ error: "Internal server error" });

@@ -13,6 +13,7 @@ router.get("/:cid/:pid", promotionController.getClientPromotion);
 router.post("/visit", promotionController.redeemVisits);
 router.delete("/:id", verifyToken, promotionController.deletePromotion);
 router.post("/restart", promotionController.restartPromotion);
+router.post("/redeem", promotionController.redeemPromotion);
 router.put("/:pid", verifyToken, fileUpload, promotionController.updatePromotion);
 router.post("/complete", promotionController.redeemPromotionByQRCode);
 module.exports = router;
