@@ -14,7 +14,7 @@ const createPreapproval = async () => {
       auto_recurring: {
         frequency: 1,
         frequency_type: "months",
-        transaction_amount: 950,
+        transaction_amount: 49990,
         currency_id: "CLP",
       },
       payment_methods_allowed: {
