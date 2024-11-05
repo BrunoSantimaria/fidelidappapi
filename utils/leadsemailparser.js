@@ -9,8 +9,7 @@ const client = require('twilio')(accountSid, authToken);
 
 router.post("/", async (req, res) => {
     console.log('Correo recibido en leadsemailparser');
-
-    
+    console.log('Request Headers:', req.headers);
     console.log('Request Body:', JSON.stringify(req.body, null, 2)); // pretty-print with 2 spaces
 
 

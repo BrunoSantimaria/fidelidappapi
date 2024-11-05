@@ -52,6 +52,7 @@ require("./utils/updatePlans");
 app.use(cookieParser());
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
+app.use(express.urlencoded({ extended: true }));
 
 // Middleware
 const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl", "https://fidelidappclient.vercel.app"];
