@@ -185,7 +185,7 @@ const checkSubscription = async (req, res) => {
   console.log(accountId);
 
   try {
-    const account = await Account.findById(accountId);
+    const account = await Account.find(accountId);
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
