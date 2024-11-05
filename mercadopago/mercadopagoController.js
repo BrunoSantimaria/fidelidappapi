@@ -193,6 +193,9 @@ const checkSubscription = async (req, res) => {
       return res.status(200).json({ message: "Plan de administrador" });
     }
     const payerId = await obtenerPayerId(account.subscriptionId);
+    if (!account.subscriptionId) {
+      return res.status(404).json({ message: "No hay suscripción activa." });
+    }
     console.log("payer id", payerId);
     if (!payerId) {
       await account.updatePlan("free", null);
