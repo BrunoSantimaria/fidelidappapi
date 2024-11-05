@@ -6,11 +6,8 @@ const ClientSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
-  email: {
-    type: String,
-    unique: true,
-    required: true,
-  },
+  email: { type: String, unique: true, index: true }, // Índice único
+
   phoneNumber: {
     type: String,
     default: "",
