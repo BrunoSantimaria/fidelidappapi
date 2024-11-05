@@ -253,6 +253,10 @@ const updateAccount = async (req, res) => {
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
+    if (settings.senderEmail) account.senderEmail = settings.senderEmail;
+    if (settings.phone) account.phone = settings.phone;
+    if (settings.name) account.name = settings.name;
+    await account.save();
 
     if (settings.senderEmail) {
       const senderData = {
@@ -278,10 +282,6 @@ const updateAccount = async (req, res) => {
     }
 
     // Actualizar otros campos de la cuenta
-    if (settings.senderEmail) account.senderEmail = settings.senderEmail;
-    if (settings.phone) account.phone = settings.phone;
-    if (settings.name) account.name = settings.name;
-    await account.save();
 
     res.status(200).json({ message: "Account settings saved" });
   } catch (error) {
