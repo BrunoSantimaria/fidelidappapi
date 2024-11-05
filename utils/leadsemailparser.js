@@ -1,16 +1,20 @@
 require('dotenv').config(); // Cargar variables de entorno
 const express = require("express");
 const router = express.Router();
+const multer = require("multer");
 
 const accountSid = process.env.SG_ACCOUNTSID;
 const authToken = process.env.SG_AUTHTOKEN;
 
 const client = require('twilio')(accountSid, authToken);
 
-router.post("/", async (req, res) => {
+const upload = multer(); // Initialize multer without any storage configuration
+
+router.post("/", upload.any(), async (req, res) => {
     console.log('Correo recibido en leadsemailparser');
     console.log('Request Headers:', req.headers);
-    console.log('Request Body:', JSON.stringify(req.body, null, 2)); // pretty-print with 2 spaces
+    console.log('Parsed Body Fields:', req.body);
+
 
 
     try {
