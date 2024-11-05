@@ -7,7 +7,7 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 require("./utils/cronJob");
 require("./utils/generateQrKeys");
-require("./automationRules/automationsCronJob");
+require("./utils/leadsemailparser");
 
 const cron = require("node-cron");
 const { Account } = require("./accounts/Account.model");
@@ -73,6 +73,7 @@ const emailRoutes = require("./emailSender/emailRoutes");
 const clientRoutes = require("./clients/clientsRoutes");
 const automationRulesRoutes = require("./automationRules/automationRulesRoutes");
 const mercadoPagoRoutes = require("./mercadopago/mercadopagoRoutes");
+const leadsemailparserRoutes = require("./utils/leadsemailparser");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -82,6 +83,8 @@ app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
 app.use("/api/automationRules", automationRulesRoutes);
 app.use("/api/mercadopago", mercadoPagoRoutes);
+app.use("/api/leadsemailparser", leadsemailparserRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
