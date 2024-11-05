@@ -7,14 +7,15 @@ const client = new MercadoPagoConfig({
   accessToken: MERCADOPAGO_ACCESS_TOKEN,
 });
 
-const createPreapproval = async () => {
+const createPreapproval = async (accountId) => {
   try {
+    const transactionAmount = accountId == "66f2ce76eae992595d6276b1" ? 20000 : 49990;
     const preapprovalData = {
       reason: "Plan Pro - FidelidApp",
       auto_recurring: {
         frequency: 1,
         frequency_type: "months",
-        transaction_amount: 950,
+        transaction_amount: transactionAmount,
         currency_id: "CLP",
       },
       payment_methods_allowed: {
@@ -64,7 +65,7 @@ const createPreference = async (req, res) => {
     const preference = new Preference(client);
     const result = await preference.create({ body: preferenceData });
 
-    const subscriptionId = await createPreapproval();
+    const subscriptionId = await createPreapproval(accountId);
 
     await Account.updateOne({ _id: accountId }, { $set: { preferenceId: result.id, subscriptionId: subscriptionId } });
 
@@ -188,7 +189,9 @@ const checkSubscription = async (req, res) => {
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
-
+    if (account.planStatus === "admin") {
+      return res.status(200).json({ message: "Plan de administrador" });
+    }
     const payerId = await obtenerPayerId(account.subscriptionId);
 
     if (!payerId) {

@@ -166,14 +166,12 @@ const customizeAccount = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Asegúrate de que socialMedia tenga propiedades inicializadas
     account.socialMedia = account.socialMedia || {
       instagram: "",
       facebook: "",
       whatsapp: "",
     };
 
-    // Actualiza las propiedades de socialMedia
     if (parsedSocialMedia && typeof parsedSocialMedia === "object") {
       account.socialMedia.instagram = parsedSocialMedia.instagram || "";
       account.socialMedia.facebook = parsedSocialMedia.facebook || "";
@@ -261,7 +259,7 @@ const updateAccount = async (req, res) => {
         from_email: settings.senderEmail,
         from_name: account.name || "Nombre del negocio",
         reply_to: settings.senderEmail,
-        nickname: account.name || "Nombre del",
+        nickname: account.name || "Nombre del negocio",
         address: "Dirección del negocio",
         city: "Ciudad",
         state: "CL",
