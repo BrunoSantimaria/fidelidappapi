@@ -11,6 +11,8 @@ const path = require("path");
 const axios = require("axios");
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const { sendMarketingEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
+
 // Decode Base64-encoded service account key
 const base64Credentials = process.env.GOOGLE_CREDENTIALS_BASE64;
 
@@ -164,14 +166,12 @@ const customizeAccount = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    // Asegúrate de que socialMedia tenga propiedades inicializadas
     account.socialMedia = account.socialMedia || {
       instagram: "",
       facebook: "",
       whatsapp: "",
     };
 
-    // Actualiza las propiedades de socialMedia
     if (parsedSocialMedia && typeof parsedSocialMedia === "object") {
       account.socialMedia.instagram = parsedSocialMedia.instagram || "";
       account.socialMedia.facebook = parsedSocialMedia.facebook || "";
@@ -215,7 +215,7 @@ const createVerifiedSenderForSubuser = async (clientData) => {
       from_email: clientData.from_email, // Tu correo para recibir el enlace de verificación
       from_name: clientData.from_name,
       reply_to: clientData.reply_to,
-      nickname: clientData.nickname,
+      nickname: clientData.nickname || "Nombre del negocio",
       address: clientData.address,
       city: clientData.city,
       country: clientData.country,
@@ -253,22 +253,17 @@ const updateAccount = async (req, res) => {
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
+    if (settings.senderEmail) account.senderEmail = settings.senderEmail;
+    if (settings.phone) account.phone = settings.phone;
+    if (settings.name) account.name = settings.name;
+    await account.save();
 
     if (settings.senderEmail) {
-      // Crear subusuario
-      const subuserData = {
-        username: account.name, // Nombre del subusuario
-        email: settings.senderEmail, // Correo del subusuario
-        password: "PasswordSecure", // Genera una contraseña segura
-        // Otros campos necesarios
-      };
-
-      // Datos para el remitente verificado
       const senderData = {
         from_email: settings.senderEmail,
         from_name: account.name || "Nombre del negocio",
         reply_to: settings.senderEmail,
-        nickname: account.name,
+        nickname: account.name || "Nombre del negocio",
         address: "Dirección del negocio",
         city: "Ciudad",
         state: "CL",
@@ -278,12 +273,15 @@ const updateAccount = async (req, res) => {
 
       // Crear el remitente verificado para el subusuario
       await createVerifiedSenderForSubuser(senderData);
+      await sendMarketingEmail({
+        to: senderData.from_email,
+        subject: "Sigue estos pasos para verificar tu sender email.",
+        header: "Hola, hemos sido notificados para aprobar tu sender email.",
+        text: `Para verificarlo, reenvíanos el correo que recibirás de SendGrid a contacto@fidelidapp.cl, así podremos activar tu cuenta. <br><br>Gracias por elegirnos.`,
+      });
     }
 
     // Actualizar otros campos de la cuenta
-    if (settings.phone) account.phone = settings.phone;
-    if (settings.name) account.name = settings.name;
-    await account.save();
 
     res.status(200).json({ message: "Account settings saved" });
   } catch (error) {

@@ -1,42 +1,36 @@
-const { MercadoPagoConfig, Payment, Preference } = require("mercadopago");
+const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { Account } = require("../accounts/Account.model");
-const MERCADOPAGO_ACCESS_TOKEN = "APP_USR-1706813158335899-102914-67bc9a1f0eb0800468ada971bb9a408d-2064050259"; // Usa tu access token aquí
 const axios = require("axios");
-// Configuración de Mercado Pago
-const client = new MercadoPagoConfig({
-  accessToken: "APP_USR-1706813158335899-102914-67bc9a1f0eb0800468ada971bb9a408d-2064050259",
-});
+const mongoose = require("mongoose");
 const BASE_URL = process.env.BASE_URL;
-// Controlador para crear una preferencia de pago recurrente
-const createPreapproval = async () => {
+const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
+const client = new MercadoPagoConfig({
+  accessToken: MERCADOPAGO_ACCESS_TOKEN,
+});
+
+const createPreapproval = async (accountId) => {
   try {
+    const transactionAmount = accountId == "66f2ce76eae992595d6276b1" ? 20000 : 49990;
     const preapprovalData = {
-      reason: "Plan Pro",
+      reason: "Plan Pro - FidelidApp",
       auto_recurring: {
         frequency: 1,
         frequency_type: "months",
-        repetitions: 12,
-        billing_day: 10,
-        billing_day_proportional: true,
-        transaction_amount: 15,
-        currency_id: "ARS",
+        transaction_amount: transactionAmount,
+        currency_id: "CLP",
       },
       payment_methods_allowed: {
-        payment_types: [
-          { id: "credit_card" }, // Agrega "credit_card" para permitir pagos con tarjeta
-          { id: "debit_card" }, // Opcionalmente, puedes incluir también "debit_card"
-        ],
-        payment_methods: [], // Deja esto vacío si quieres permitir todas las tarjetas
+        payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
+        payment_methods: [],
       },
-      back_url: "https://google.com.ar",
+      back_url: `https://fidelidapp.cl/dashboard/`,
     };
 
     const resp = await axios.post(`https://api.mercadopago.com/preapproval_plan`, preapprovalData, {
       headers: {
-        Authorization: `Bearer APP_USR-1706813158335899-102914-67bc9a1f0eb0800468ada971bb9a408d-2064050259`,
+        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
       },
     });
-    console.log(resp.data.id);
 
     return resp.data.id;
   } catch (error) {
@@ -49,14 +43,13 @@ const createPreference = async (req, res) => {
   try {
     const { title, description, price, email, accountId, items } = req.body;
 
-    // Crear la preferencia de pago
     const preferenceData = {
       items: [
         {
           title,
           description,
           quantity: Number(items[0].quantity),
-          currency_id: "ARS",
+          currency_id: "CLP",
           unit_price: Number(items[0].price),
         },
       ],
@@ -73,55 +66,18 @@ const createPreference = async (req, res) => {
     const preference = new Preference(client);
     const result = await preference.create({ body: preferenceData });
 
-    // Crear la preaprobación y obtener su ID
-    const subscriptionId = await createPreapproval();
+    const subscriptionId = await createPreapproval(accountId);
 
-    // Guardar el ID de la preferencia y el de la suscripción en la cuenta
     await Account.updateOne({ _id: accountId }, { $set: { preferenceId: result.id, subscriptionId: subscriptionId } });
 
-    res.status(200).json({ id: result.id, subscriptionId: subscriptionId }); // Retorna el ID de la preferencia
+    res.status(200).json({ id: result.id, subscriptionId: subscriptionId });
   } catch (error) {
     console.error("Error al crear la preferencia:", error);
     res.status(500).json({ error: "Error al crear la preferencia" });
   }
 };
 
-const paymentCallback = async (req, res) => {
-  try {
-    const { collection_id, preference_id } = req.query; // Obtener los IDs del query params
-
-    // Verificar la preferencia y obtener información del pago
-    const response = await axios.get(`https://api.mercadopago.com/v1/payments/${collection_id}`, {
-      headers: {
-        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
-      },
-    });
-
-    const paymentData = response.data;
-
-    // Obtener el accountId desde los metadatos
-    const accountId = paymentData.metadata.accountId;
-
-    // Guardar el payer_id y actualizar el estado de la cuenta
-    await Account.updateOne(
-      { _id: accountId },
-      {
-        $set: {
-          planStatus: paymentData.status === "approved" ? "active" : "failed",
-          payerId: paymentData.payer.id, // Guarda el payer_id aquí
-        },
-      }
-    );
-
-    res.status(200).json({ message: "Estado de pago actualizado", payerId: paymentData.payer.id });
-  } catch (error) {
-    console.error("Error en el callback de pago:", error);
-    res.status(500).json({ error: "Error al procesar el callback de pago" });
-  }
-};
-// Controlador para verificar el estado de la suscripción
-// Controlador para verificar el estado de la suscripción
-const obtenerPayerId = async (subscriptionId) => {
+const obtenerPayerId = async (subscriptionId, accountId) => {
   try {
     const response = await axios.get(`https://api.mercadopago.com/preapproval/search`, {
       params: {
@@ -138,6 +94,8 @@ const obtenerPayerId = async (subscriptionId) => {
       const payerId = subscriptions[0].payer_id;
       return payerId;
     } else {
+      const account = await Account.findById(accountId);
+      await account.updatePlan("free", null);
       console.log("No se encontraron suscripciones para el preapproval_plan_id proporcionado.");
       return null;
     }
@@ -147,10 +105,9 @@ const obtenerPayerId = async (subscriptionId) => {
   }
 };
 
-// Función checkSubscription actualizada
 const cancelActiveSubscriptions = async (subscriptions) => {
   const cancelPromises = subscriptions.map(async (subscription) => {
-    const subscriptionId = subscription.id; // ID de la suscripción a cancelar
+    const subscriptionId = subscription.id;
     const response = await axios.put(
       `https://api.mercadopago.com/preapproval/${subscriptionId}/`,
       { status: "cancelled" },
@@ -160,16 +117,14 @@ const cancelActiveSubscriptions = async (subscriptions) => {
         },
       }
     );
-    return response.data; // Devuelve la respuesta de la API para cada cancelación
+    return response.data;
   });
 
-  return Promise.all(cancelPromises); // Espera a que se completen todas las cancelaciones
+  return Promise.all(cancelPromises);
 };
 
-// Endpoint para cancelar suscripciones
 const cancelSubscriptions = async (req, res) => {
-  console.log(req.body);
-  const { accountId } = req.body; // Recibimos accountId del cuerpo de la solicitud
+  const { accountId } = req.body;
 
   try {
     const account = await Account.findById(accountId);
@@ -178,7 +133,7 @@ const cancelSubscriptions = async (req, res) => {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
 
-    const payerId = await obtenerPayerId(account.subscriptionId);
+    const payerId = await obtenerPayerId(account.subscriptionId, accountId);
 
     if (!payerId) {
       return res.status(404).json({ message: "No se encontró el payer_id asociado." });
@@ -192,23 +147,21 @@ const cancelSubscriptions = async (req, res) => {
 
     const subscriptions = response.data.results;
 
-    // Asegúrate de que subscriptions sea un array
     console.log("Subscriptions:", subscriptions);
 
-    // Filtrar suscripciones autorizadas
     const activeSubscriptions = subscriptions.filter((sub) => sub.status === "authorized");
 
     console.log("Active Subscriptions:", activeSubscriptions);
 
     if (Array.isArray(activeSubscriptions) && activeSubscriptions.length > 0) {
-      // Cancelar todas las suscripciones activas
       const cancelResults = await cancelActiveSubscriptions(activeSubscriptions);
       console.log("Cancelación de suscripciones:", cancelResults);
 
-      // Actualiza la cuenta a 'free'
-      await Account.updateOne({ _id: accountId }, { planStatus: "free", isActive: false, planExpiration: null });
+      await Account.updateOne({ _id: accountId }, { activePayer: false });
 
-      return res.status(200).json({ message: "Todas las suscripciones han sido canceladas.", cancelResults });
+      return res
+        .status(200)
+        .json({ message: "Todas las suscripciones han sido canceladas. La cuenta seguirá en el plan 'Pro' hasta la fecha de expiración.", cancelResults });
     } else {
       return res.status(200).json({ message: "No hay suscripciones activas para cancelar." });
     }
@@ -217,235 +170,89 @@ const cancelSubscriptions = async (req, res) => {
     return res.status(500).json({ message: "Error al verificar y cancelar las suscripciones." });
   }
 };
+
+// Activar suscripción Pro
+const activateProSubscription = async (accountId, expirationDate) => {
+  const account = await Account.findById(accountId);
+  if (account) {
+    await account.updatePlan("pro", expirationDate);
+  } else {
+    console.error("Account not found");
+  }
+};
+
 const checkSubscription = async (req, res) => {
   const { accountId } = req.params;
+  console.log(accountId);
 
   try {
-    const account = await Account.findById(accountId);
+    const objectId = new mongoose.Types.ObjectId(accountId);
+
+    const account = await Account.findById(objectId);
 
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
-
-    // Obtener payer_id usando la función obtenerPayerId
+    if (account.planStatus === "admin") {
+      return res.status(200).json({ message: "Plan de administrador" });
+    }
     const payerId = await obtenerPayerId(account.subscriptionId);
-
+    if (!account.subscriptionId) {
+      return res.status(404).json({ message: "No hay suscripción activa." });
+    }
+    console.log("payer id", payerId);
     if (!payerId) {
+      await account.updatePlan("free", null);
       return res.status(404).json({ message: "No se encontró el payer_id asociado." });
     }
 
     const response = await axios.get(`https://api.mercadopago.com/preapproval/search?payer_id=${payerId}`, {
-      headers: {
-        Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}`,
-      },
+      headers: { Authorization: `Bearer ${MERCADOPAGO_ACCESS_TOKEN}` },
     });
 
     const subscriptions = response.data.results;
+    let latestSubscription = null;
 
-    // Filtrar suscripciones autorizadas
-    const activeSubscriptions = subscriptions.filter((sub) => sub.status === "authorized");
+    if (subscriptions && subscriptions.length > 0) {
+      const activeOrPaidSubscriptions = subscriptions.filter((sub) => sub.status === "authorized" || sub.status === "pending" || sub.status === "cancelled");
+      console.log("active", activeOrPaidSubscriptions);
 
-    if (activeSubscriptions.length > 0) {
-      // Cancelar todas las suscripciones activas
-      const cancelResults = await cancelSubscriptions(activeSubscriptions);
+      if (activeOrPaidSubscriptions.length > 0) {
+        latestSubscription = activeOrPaidSubscriptions.reduce((latest, current) => {
+          const currentLastModified = new Date(current.last_modified);
+          if (!latest || currentLastModified > new Date(latest.last_modified)) {
+            return current;
+          }
+          return latest;
+        }, null);
 
-      // Actualiza la cuenta a 'free' ya que todas las suscripciones han sido canceladas
-      await Account.updateOne({ _id: accountId }, { planStatus: "free", isActive: false, planExpiration: null });
-
-      return res.status(200).json({ message: "Todas las suscripciones han sido canceladas.", cancelResults });
-    } else {
-      return res.status(200).json({ message: "No hay suscripciones activas para cancelar." });
+        if (latestSubscription.status === "cancelled") {
+          console.log("La suscripción ha sido cancelada.");
+          account.activePayer = false;
+          await account.save();
+        } else {
+          account.activePayer = true;
+          await account.updatePlan("pro", latestSubscription.next_payment_date);
+        }
+      }
     }
+
+    const expirationDate = account.planExpiration;
+    if (expirationDate && new Date(expirationDate) > new Date()) {
+      return res.json({ message: "El plan pro sigue vigente", expirationDate });
+    }
+
+    await account.updatePlan("free", null);
+    return res.json({ message: "No hay suscripción activa, se ha actualizado a plan gratuito." });
   } catch (error) {
-    console.error("Error en checkSubscription:", error);
-    return res.status(500).json({ message: "Error al verificar las suscripciones." });
+    console.error("Error al verificar la suscripción:", error);
+    return res.status(500).json({ message: "Error al verificar la suscripción." });
   }
 };
 
-// Controlador para modificar el monto de una suscripción
-const modifySubscriptionAmount = async (req, res) => {
-  try {
-    const { id, transaction_amount, currency_id } = req.body;
-
-    const updatedSubscription = {
-      auto_recurring: {
-        transaction_amount: transaction_amount,
-        currency_id: currency_id,
-      },
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Monto de suscripción actualizado correctamente." });
-  } catch (error) {
-    console.error("Error al modificar el monto:", error);
-    res.status(500).json({ error: "Error al modificar el monto de la suscripción." });
-  }
-};
-
-// Controlador para modificar la tarjeta del medio de pago principal
-const modifyPrimaryCard = async (req, res) => {
-  try {
-    const { id, card_token_id } = req.body;
-
-    const updatedSubscription = {
-      card_token_id,
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Tarjeta principal actualizada correctamente." });
-  } catch (error) {
-    console.error("Error al modificar la tarjeta principal:", error);
-    res.status(500).json({ error: "Error al modificar la tarjeta principal." });
-  }
-};
-
-// Controlador para modificar medio de pago secundario
-const modifySecondaryPaymentMethod = async (req, res) => {
-  try {
-    const { id, card_token_id_secondary, payment_method_id_secondary } = req.body;
-
-    const updatedSubscription = {
-      card_token_id_secondary,
-      payment_method_id_secondary,
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Método de pago secundario actualizado correctamente." });
-  } catch (error) {
-    console.error("Error al modificar el medio de pago secundario:", error);
-    res.status(500).json({ error: "Error al modificar el medio de pago secundario." });
-  }
-};
-
-// Controlador para pausar o cancelar la suscripción
-const changeSubscriptionStatus = async (req, res) => {
-  try {
-    const { id, status } = req.body; // 'cancelled' o 'paused'
-
-    const updatedSubscription = {
-      status,
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: `Suscripción ${status === "cancelled" ? "cancelada" : "pausada"} correctamente.` });
-  } catch (error) {
-    console.error("Error al cambiar el estado de la suscripción:", error);
-    res.status(500).json({ error: "Error al cambiar el estado de la suscripción." });
-  }
-};
-
-// Controlador para reactivar una suscripción
-const reactivateSubscription = async (req, res) => {
-  try {
-    const { id } = req.body; // ID de la suscripción a reactivar
-
-    const updatedSubscription = {
-      status: "active", // Cambiar el estado a activo
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Suscripción reactivada correctamente." });
-  } catch (error) {
-    console.error("Error al reactivar la suscripción:", error);
-    res.status(500).json({ error: "Error al reactivar la suscripción." });
-  }
-};
-
-// Controlador para cambiar la fecha de facturación
-const changeBillingDate = async (req, res) => {
-  try {
-    const { id, billing_day } = req.body; // Día de facturación
-
-    const updatedSubscription = {
-      billing_day,
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Fecha de facturación actualizada correctamente." });
-  } catch (error) {
-    console.error("Error al cambiar la fecha de facturación:", error);
-    res.status(500).json({ error: "Error al cambiar la fecha de facturación." });
-  }
-};
-
-// Controlador para establecer monto proporcional
-const setProportionalAmount = async (req, res) => {
-  try {
-    const { id, proportional_amount } = req.body; // Monto proporcional
-
-    const updatedSubscription = {
-      auto_recurring: {
-        transaction_amount: proportional_amount,
-      },
-    };
-
-    await client.subscriptions.update(id, { body: updatedSubscription }); // Llamada a la API
-
-    res.json({ message: "Monto proporcional establecido correctamente." });
-  } catch (error) {
-    console.error("Error al establecer el monto proporcional:", error);
-    res.status(500).json({ error: "Error al establecer el monto proporcional." });
-  }
-};
-
-// Controlador para ofrecer una prueba gratuita
-const offerFreeTrial = async (req, res) => {
-  try {
-    const { email, accountId } = req.body;
-
-    // Crear la preferencia de prueba gratuita
-    const freeTrialPreferenceData = {
-      items: [
-        {
-          title: "Prueba Gratuita",
-          description: "Prueba gratuita de 30 días",
-          quantity: 1,
-          currency_id: "ARS",
-          unit_price: 0, // Precio gratis
-        },
-      ],
-      back_urls: {
-        success: "https://fidelidapp.cl/success",
-        failure: "https://fidelidapp.cl/failure",
-        pending: "https://fidelidapp.cl/pending",
-      },
-      auto_return: "approved",
-      payer: {
-        email: email,
-      },
-      metadata: {
-        accountId: accountId, // Guardar el ID de la cuenta en los metadatos
-      },
-    };
-
-    const preference = new Preference(client);
-    const result = await preference.create({ body: freeTrialPreferenceData });
-
-    res.status(200).json({ id: result.id }); // Retorna el ID de la preferencia
-  } catch (error) {
-    console.error("Error al ofrecer prueba gratuita:", error);
-    res.status(500).json({ error: "Error al ofrecer prueba gratuita." });
-  }
-};
-
+// Exportar las funciones
 module.exports = {
   createPreference,
-  checkSubscription,
-
-  modifySubscriptionAmount,
-  modifyPrimaryCard,
-  modifySecondaryPaymentMethod,
-  changeSubscriptionStatus,
-  reactivateSubscription,
-  changeBillingDate,
-  setProportionalAmount,
-  offerFreeTrial,
-  paymentCallback,
   cancelSubscriptions,
+  checkSubscription,
 };

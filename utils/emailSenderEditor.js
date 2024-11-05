@@ -1,7 +1,7 @@
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const sendMarketingEmailEditor = async ({ to, subject, template }) => {
+const sendMarketingEmailEditor = async ({ to, subject, template, from }) => {
   try {
     // Validar que la plantilla se haya proporcionado
     if (!template || typeof template !== "string") {
@@ -11,7 +11,7 @@ const sendMarketingEmailEditor = async ({ to, subject, template }) => {
     // Crear el objeto de mensaje
     const msg = {
       to,
-      from: "contacto@fidelidapp.cl",
+      from: from,
       subject,
       html: template, // Aquí se usa el template que le pasas como argumento
     };
