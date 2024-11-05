@@ -188,7 +188,7 @@ const checkSubscription = async (req, res) => {
   try {
     const objectId = new mongoose.Types.ObjectId(accountId);
 
-    const account = await AccountModel.findById(objectId);
+    const account = await Account.findById(objectId);
 
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
