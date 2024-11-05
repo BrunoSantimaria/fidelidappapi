@@ -186,7 +186,7 @@ const checkSubscription = async (req, res) => {
   console.log(accountId);
 
   try {
-    const objectId = new Types.ObjectId(accountId);
+    const objectId = new mongoose.Types.ObjectId.createFromHexString(accountId);
 
     const account = await AccountModel.findById(objectId);
 
