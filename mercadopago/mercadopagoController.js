@@ -1,6 +1,7 @@
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 const { Account } = require("../accounts/Account.model");
 const axios = require("axios");
+const mongoose = require("mongoose");
 const BASE_URL = process.env.BASE_URL;
 const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
 const client = new MercadoPagoConfig({
@@ -185,7 +186,10 @@ const checkSubscription = async (req, res) => {
   console.log(accountId);
 
   try {
-    const account = await Account.find(accountId);
+    const objectId = mongoose.Types.ObjectId(accountId);
+
+    const account = await AccountModel.findById(objectId);
+
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
     }
