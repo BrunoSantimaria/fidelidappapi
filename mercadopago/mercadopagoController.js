@@ -193,7 +193,7 @@ const checkSubscription = async (req, res) => {
       return res.status(200).json({ message: "Plan de administrador" });
     }
     const payerId = await obtenerPayerId(account.subscriptionId);
-
+    console.log("payer id", payerId);
     if (!payerId) {
       await account.updatePlan("free", null);
       return res.status(404).json({ message: "No se encontró el payer_id asociado." });
