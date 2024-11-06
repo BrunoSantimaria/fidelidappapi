@@ -25,15 +25,20 @@ router.post("/", upload.any(), async (req, res) => {
         const textMessage = req.body.text;
         const business = toAddress.split('@')[0]; // This will give you "parser.example.com"
 
+        const textContent = req.body || ''; // Asegúrate de que el texto esté aquí
+
+        if (!textContent) {
+            console.log('No se encontró texto en el cuerpo del mensaje');
+            return res.status(400).send('Cuerpo del mensaje vacío');
+        }
+
         // Define the message template
         const messageToSend = `
         Hola ${business},
 
         Ha llegado un nuevo formulario de contacto.
-
-        From: ${fromAddress}
         Subject: ${subject}
-        Message: ${textMessage}
+        Message: ${textContent}
     `;
 
         console.log('To address:', toAddress);
@@ -55,8 +60,29 @@ router.post("/", upload.any(), async (req, res) => {
         res.status(500).send('Error procesando el lead');
     }
 
-
 });
+
+const extractFieldsFromText = (text) => {
+    const fields = {};
+
+    // Usamos expresiones regulares para buscar cada campo
+    const nameMatch = text.match(/--- Nombre ---\s+([\s\S]+?)\s+---/);
+    const phoneMatch = text.match(/--- Número de teléfono ---\s+([\s\S]+?)\s+---/);
+    const emailMatch = text.match(/--- Email ---\s+([\s\S]+?)\s+---/);
+    const companyMatch = text.match(/--- Empresa ---\s+([\s\S]+?)\s+---/);
+    const reasonMatch = text.match(/--- ¿Por qué nos contactactas\? ---\s+([\s\S]+?)\s+---/);
+    const messageMatch = text.match(/--- Mensaje ---\s+([\s\S]+?)\s+$/);
+
+    // Guardamos los valores extraídos en el objeto fields si existen
+    fields.name = nameMatch ? nameMatch[1].trim() : '';
+    fields.phone = phoneMatch ? phoneMatch[1].trim() : '';
+    fields.email = emailMatch ? emailMatch[1].trim() : '';
+    fields.company = companyMatch ? companyMatch[1].trim() : '';
+    fields.reason = reasonMatch ? reasonMatch[1].trim() : '';
+    fields.message = messageMatch ? messageMatch[1].trim() : '';
+
+    return fields;
+};
 
 
 module.exports = router;
