@@ -128,6 +128,98 @@ exports.addClient = async (req, res) => {
   }
 };
 
+exports.addClientsBatch = async (req, res) => {
+  const { accountId, clientsData, promotionId } = req.body;
+  console.log("Datos recibidos:", req.body);
+
+  // Verificar que clientsData sea un array y no esté vacío
+  if (!Array.isArray(clientsData) || clientsData.length === 0) {
+    return res.status(400).json({ message: "clientsData debe ser un array y no estar vacío" });
+  }
+
+  const accountIdObj = StrToObjectId(accountId);
+
+  try {
+    const account = await Account.findById(accountIdObj).populate("promotions");
+    if (!account) {
+      console.error(`Cuenta no encontrada para accountId: ${accountId}`);
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const emails = clientsData.map((client) => client.email.trim());
+    const existingClients = await Client.find({ email: { $in: emails } });
+    const existingClientsMap = new Map(existingClients.map((client) => [client.email, client]));
+
+    const clientsToAdd = [];
+    const clientsToUpdate = [];
+
+    for (const clientData of clientsData) {
+      const email = clientData.email.trim();
+      let client = existingClientsMap.get(email);
+
+      if (!client) {
+        // Crear nuevo cliente si no existe
+        console.log(`Creando nuevo cliente: ${clientData.name} (${email})`);
+        client = new Client({
+          name: clientData.name,
+          email,
+          phoneNumber: clientData.phoneNumber,
+          addedAccounts: [{ accountId: accountIdObj }],
+          addedPromotions: promotionId ? [{ promotion: StrToObjectId(promotionId) }] : [],
+        });
+        clientsToAdd.push(client);
+      } else {
+        // Actualizar cliente existente
+        console.log(`Actualizando cliente existente: ${client.name} (${email})`);
+        const isClientInAccount = client.addedAccounts.some((entry) => entry.accountId.equals(accountIdObj));
+        if (!isClientInAccount) {
+          client.addedAccounts.push({ accountId: accountIdObj });
+        }
+        if (promotionId && !client.addedPromotions.some((entry) => entry.promotion.equals(StrToObjectId(promotionId)))) {
+          client.addedPromotions.push({ promotion: StrToObjectId(promotionId) });
+        }
+        clientsToUpdate.push(client);
+      }
+    }
+
+    // Guardar nuevos clientes en paralelo
+    if (clientsToAdd.length > 0) {
+      await Client.insertMany(clientsToAdd);
+      console.log(`Clientes nuevos guardados: ${clientsToAdd.map((client) => client.email)}`);
+    }
+
+    // Actualizar clientes existentes en paralelo
+    if (clientsToUpdate.length > 0) {
+      await Promise.all(clientsToUpdate.map((client) => client.save()));
+    }
+
+    // Agregar los clientes a la cuenta
+    account.clients.push(
+      ...clientsToAdd.map((client) => ({
+        id: client._id,
+        name: client.name,
+        email: client.email,
+        phoneNumber: client.phoneNumber,
+      })),
+      ...clientsToUpdate.map((client) => ({
+        id: client._id,
+        name: client.name,
+        email: client.email,
+        phoneNumber: client.phoneNumber,
+      }))
+    );
+
+    // Guardar cambios en la cuenta
+    await account.save();
+    console.log("Clientes agregados a la cuenta:", account.clients);
+
+    return res.status(200).json({ message: "Clients added successfully", clients: account.clients });
+  } catch (error) {
+    console.error("Error al agregar clientes en lote:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Eliminar un cliente de la cuenta
 exports.deleteClient = async (req, res) => {
   const { accountId, clientId } = req.body;
