@@ -466,8 +466,9 @@ exports.redeemVisits = async (req, res) => {
   if (!account) {
     return res.status(404).json({ error: "Associated account not found" });
   }
+  console.log(account.accountQr, accountQr);
 
-  if (account.accountQr !== accountQr) {
+  if (account.accountQr != accountQr) {
     return res.status(401).json({ error: "Invalid daily key" });
   }
 
