@@ -311,7 +311,6 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 exports.getClientPromotion = async (req, res) => {
-
   const clientId = req.params.cid;
   const promotionId = req.params.pid;
 
@@ -452,7 +451,7 @@ exports.redeemVisits = async (req, res) => {
 
   console.log(clientEmail, promotionId, accountQr);
 
-  if (!promotionId || !clientEmail || !accountQr) {
+  if (!accountQr) {
     return res.status(400).json({ error: "Missing promotion ID or client email or AccountQR" });
   }
 
@@ -534,7 +533,7 @@ exports.redeemVisits = async (req, res) => {
   }
 };
 
-//See if we need to reduce the redeem with points ?? 
+//See if we need to reduce the redeem with points ??
 exports.redeemPromotionByQRCode = async (req, res) => {
   const { clientEmail, promotionId } = req.body;
   console.log(clientEmail, promotionId);
@@ -606,7 +605,7 @@ exports.restartPromotion = async (req, res) => {
       return res.status(404).json({ error: "Promotion details not found" });
     }
     if (existingPromotiondata.promotionRecurrent === "False") {
-      res.status(400).json({ error: "La promoción no es recurrente!" })
+      res.status(400).json({ error: "La promoción no es recurrente!" });
     }
 
     // Find the client by email
