@@ -694,6 +694,7 @@ exports.redeemPromotion = async (req, res) => {
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
+    //console.log(existingPromotiondata)
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
     const msg = {
       to: clientEmail,
@@ -762,19 +763,19 @@ const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid,
         <body>
           <div class="container">
             <div class="content">
-              <h1>¡Has sido agregado a una promoción!</h1>
-              <h1>${promotionTitle}</h1>
-              <p> ${existingPromotiondata.description}</h1>
-              <p>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</h1>
-              <p>Verifica tu promoción haciendo clic en el siguiente enlace:</p>
-              <a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Ver Fidelicard</a>
-              <p>Y para validar tus visitas, pide que te muestren el QR de la tienda. </p>
-              <p>Aplican Condiciones:</p>
-              <p>${existingPromotiondata.conditions}</p>
+<h1>¡Has sido agregado a una promoción!</h1>
+<h1>${promotionTitle}</h1>
+<p> ${existingPromotiondata.description}</h1>
+${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</p>` : ""}
+<p>Verifica tu promoción haciendo clic en el siguiente enlace:</p>
+<a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Ver Fidelicard</a>
+<p>Y para validar tus visitas o sumar puntos, pide que te muestren el QR de la tienda. </p>
+<p>Aplican Condiciones:</p>
+<p>${existingPromotiondata.conditions}</p>
             </div>
             <div class="footer">
             <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
-              <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+<p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
         </body>
