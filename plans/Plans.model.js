@@ -61,6 +61,11 @@ PlanSchema.pre("save", function (next) {
     this.emailLimit = 30000;
     this.sendEmail = true;
     this.clientLimit = null;
+  } else if (this.planStatus === "premium") {
+    this.promotionLimit = 50;
+    this.emailLimit = 10000;
+    this.sendEmail = true;
+    this.clientLimit = null;
   }
 
   next();
