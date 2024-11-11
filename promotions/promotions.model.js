@@ -1,64 +1,83 @@
-const e = require("express");
 const mongoose = require("mongoose");
 
-const promotionSchema = new mongoose.Schema({
-  userID: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User", // Reference to the User model
-    required: true,
-  },
-  title: {
-    type: String,
-    required: true,
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  conditions: {
-    type: String,
-    required: false,
-  },
-  promotionType: {
-    type: String,
-    required: true,
-  },
-  promotionRecurrent: {
-    type: String,
-    required: true,
-    default: "True",
-    enum: ["True", "False"],
-  },
-  visitsRequired: {
-    type: Number,
-    required: true,
-  },
-  benefitDescription: {
-    type: String,
-  },
-  promotionDuration: {
-    type: Number,
-    required: true,
-  },
-  imageID: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Image",
-    required: false,
-  },
-  imageUrl: {
-    type: String,
-  },
-  statistics: {
-    type: Object,
-  },
-  visitsPerDay: {
-    type: Object,
-  },
-  pointSystem: { // Point system for the promotion, makes the visits redemption possible at any moment
-    type: Boolean,
-    default: false,
-  },
+const rewardSchema = new mongoose.Schema({
+  points: { type: Number, required: true },
+  description: { type: String, required: true },
 });
+
+const promotionSchema = new mongoose.Schema(
+  {
+    userID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    conditions: {
+      type: String,
+      required: false,
+    },
+    // promotionType: {
+    //   type: String,
+    //   required: true,
+    //   enum: ["Descuento", "Producto Gratis", "Cupones", "Otro"],
+    // },
+    promotionRecurrent: {
+      type: String,
+      required: true,
+      default: "True",
+      enum: ["True", "False"],
+    },
+    visitsRequired: {
+      type: Number,
+      required: function () {
+        return this.systemType === "visits";
+      },
+    },
+    benefitDescription: {
+      type: String,
+    },
+    promotionDuration: {
+      type: Number,
+      required: true,
+    },
+    imageID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Image",
+      required: false,
+    },
+    imageUrl: {
+      type: String,
+    },
+    statistics: {
+      type: Object,
+    },
+    visitsPerDay: {
+      type: Object,
+    },
+    systemType: {
+      type: String,
+      required: true,
+      enum: ["visits", "points"],
+    },
+    pointSystem: {
+      type: Boolean,
+      default: false,
+    },
+    rewards: {
+      type: [rewardSchema],
+      default: [],
+    },
+  },
+  { timestamps: true }
+);
 
 const Promotion = mongoose.model("Promotion", promotionSchema);
 

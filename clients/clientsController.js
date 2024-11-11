@@ -1,11 +1,12 @@
 const Client = require("../promotions/client.model");
-const { Account } = require("../accounts/Account.model.js");
+const Account = require("../accounts/Account.model.js");
 const { StrToObjectId } = require("../utils/StrToObjectId");
 const Promotion = require("../promotions/promotions.model.js"); // Importa el modelo de promociones
 
 exports.getAccountClients = async (req, res) => {
   const { accountId } = req.query;
   const accountIdObj = StrToObjectId(accountId);
+  console.log(accountId);
 
   try {
     // Buscar la cuenta con las promociones del restaurante

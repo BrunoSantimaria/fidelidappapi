@@ -1,7 +1,7 @@
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
 const Client = require("../promotions/client.model");
-const { Account } = require("../accounts/Account.model");
+const Account = require("../accounts/Account.model");
 const emailSender = require("../utils/emailSender");
 const { handlePromotionRedemption } = require("../utils/handlePromotionRedemption");
 

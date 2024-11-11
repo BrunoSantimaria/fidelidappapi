@@ -1,5 +1,5 @@
 const { MercadoPagoConfig, Preference } = require("mercadopago");
-const { Account } = require("../accounts/Account.model");
+const Account = require("../accounts/Account.model");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const BASE_URL = process.env.BASE_URL;

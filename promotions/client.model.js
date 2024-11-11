@@ -52,8 +52,17 @@ const ClientSchema = new mongoose.Schema({
       lastRedeemDate: {
         type: Date,
       },
+      pointsEarned: {
+        type: Number,
+        default: 0, // Default value is 0, will store points earned per promotion
+      },
     },
   ],
+  totalPoints: {
+    // Nuevo campo para almacenar el total de puntos acumulados
+    type: Number,
+    default: 0,
+  },
 });
 
 // Create the Client model

@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const Promotion = require("./promotions.model");
 const Client = require("./client.model");
 const User = require("../auth/User.model");
-const { Account } = require("../accounts/Account.model");
+const Account = require("../accounts/Account.model");
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const qr = require("qrcode");
@@ -16,13 +16,10 @@ const { StrToObjectId } = require("../utils/StrToObjectId.js");
 
 exports.createPromotion = async (req, res) => {
   try {
-    let token = req.headers.authorization?.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const email = decoded.email;
-
+    const { email } = req.body;
+    console.log(req.body);
+    // Obtener usuario y cuenta
     const user = await User.findOne({ email });
-    console.log(user);
-
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -32,29 +29,43 @@ exports.createPromotion = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
-    console.log(req.body);
-
-    const promotion = new Promotion({
+    const promotionData = {
       userID: account.owner,
-      title: req.body.title,
-      description: req.body.description,
-      promotionType: req.body.promotionType,
-      promotionRecurrent: req.body.promotionRecurrent,
-      visitsRequired: req.body.visitsRequired,
-      benefitDescription: req.body.benefitDescription,
-      promotionDuration: req.body.promotionDuration,
-      imageUrl: req.body.imageUrl,
-      conditions: req.body.conditions,
-    });
+      title: req.body.promotionDetails.title,
+      description: req.body.promotionDetails.description,
+      conditions: req.body.promotionDetails.conditions,
+      promotionType: req.body.promotionDetails.promotionType,
+      promotionRecurrent: req.body.systemType === "points" ? "True" : req.body.promotionRequirements.isRecurrent ? "True" : "False", // Recurrente es siempre true si es de "points"
+      promotionDuration: Number(req.body.promotionRequirements.promotionDuration),
+      imageUrl: req.body.imageUrl || "",
+      systemType: req.body.systemType, // "points" o "visits"
+      pointSystem: req.body.systemType === "points",
+      rewards: req.body.promotionRequirements.rewards || [],
+    };
 
+    // Agregar visitas requeridas solo si el sistema es de visitas
+    if (req.body.systemType === "visits") {
+      // Asegurarse de que 'visitsRequired' esté presente y sea un número
+      const visitsRequired = Number(req.body.promotionRequirements.visitsRequired);
+      if (isNaN(visitsRequired)) {
+        return res.status(400).json({ error: "visitsRequired must be a valid number" });
+      }
+      promotionData.visitsRequired = visitsRequired;
+    }
+
+    const promotion = new Promotion(promotionData);
+
+    // Guardar la promoción en la base de datos
     await promotion.save();
 
+    // Asociar la promoción a la cuenta y guardar
     account.promotions.push(promotion._id);
-
     await account.save();
 
+    // Registrar la acción de creación de la promoción
     log.logAction(email, "createPromotion", promotion.title);
 
+    // Responder con éxito y los datos de la promoción creada
     res.status(201).json(promotion);
   } catch (error) {
     console.error("Error creating promotion:", error);
@@ -280,6 +291,15 @@ exports.addClientToPromotion = async (req, res) => {
       status: "Active",
     });
 
+    // Aquí verificamos qué tipo de sistema de promoción es
+    if (existingPromotiondata.systemType === "visits") {
+      // Si la promoción es basada en visitas
+      client.addedpromotions[client.addedpromotions.length - 1].actualVisits = 0; // Inicializar el contador de visitas
+    } else if (existingPromotiondata.systemType === "points") {
+      // Si la promoción es basada en puntos
+      client.addedpromotions[client.addedpromotions.length - 1].pointsEarned = 0; // Inicializar los puntos ganados
+    }
+
     const accountClientExists = account.clients.find((accClient) => accClient.email === clientEmail);
 
     if (!accountClientExists) {
@@ -297,6 +317,7 @@ exports.addClientToPromotion = async (req, res) => {
         ],
       });
     }
+
     await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title);
     await client.save();
     await account.save();
@@ -315,33 +336,65 @@ exports.getClientPromotion = async (req, res) => {
   const promotionId = req.params.pid;
 
   try {
+    // Encuentra al cliente por su ID
     const client = await Client.findById(clientId);
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
-    const promotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
+
+    // Encuentra la promoción específica del cliente usando el promotionId
+    const promotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found for this client" });
     }
 
+    // Obtiene los detalles de la promoción desde la colección de promociones
     const promotionDetails = await Promotion.findById(promotionId);
+    if (!promotionDetails) {
+      return res.status(404).json({ error: "Promotion details not found" });
+    }
 
-    //Check end date of promotion andcompare to current date
+    // Verifica si la fecha de la promoción ha expirado y actualiza el estado
     const currentDate = new Date();
     const promotionEndDate = new Date(promotion.endDate);
 
     if (currentDate > promotionEndDate) {
+      // Si la promoción ha expirado, actualiza su estado
       promotion.status = "Expired";
-      client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId).status = "Expired";
+      // Guarda los cambios en la base de datos
       await client.save();
     }
 
-    // Create response from promotion and client
+    // Lógica para mostrar puntos o visitas según el tipo de sistema
+    let promotionData = {};
+
+    if (promotionDetails.systemType === "points") {
+      promotionData = {
+        ...promotion.toObject(), // Usamos .toObject() para convertir el documento a un objeto simple
+        pointsEarned: promotion.pointsEarned || 0,
+        totalPointsRequired: promotionDetails.totalPointsRequired || 0,
+      };
+    } else if (promotionDetails.systemType === "visits") {
+      promotionData = {
+        ...promotion.toObject(),
+        actualVisits: promotion.actualVisits || 0,
+        totalVisitsRequired: promotionDetails.totalVisitsRequired || 0,
+      };
+    } else {
+      promotionData = promotion.toObject(); // Si no es ni puntos ni visitas, simplemente devolvemos la promoción tal cual
+    }
+
+    // Respuesta final con los datos de la promoción, detalles y cliente
     const response = {
-      promotion: promotion,
+      promotion: promotionData,
       promotionDetails: promotionDetails,
-      client: client,
-      //imageUrl: imageUrl
+      client: {
+        _id: client._id,
+        email: client.email,
+        name: client.name,
+        phoneNumber: client.phoneNumber,
+      }, // Incluyendo solo los datos relevantes del cliente
     };
 
     res.status(200).json(response);
@@ -350,6 +403,7 @@ exports.getClientPromotion = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 const sendCompletedPromotionMail = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL

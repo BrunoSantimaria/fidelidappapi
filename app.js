@@ -9,8 +9,7 @@ require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
 
 const cron = require("node-cron");
-const { Account } = require("./accounts/Account.model");
-
+const Account = require("./accounts/Account.model");
 
 dotenv.config();
 
