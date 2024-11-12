@@ -196,6 +196,9 @@ const checkSubscription = async (req, res) => {
     if (account.planStatus === "admin") {
       return res.status(200).json({ message: "Plan de administrador" });
     }
+    if (account.planStatus === "pro2") {
+      return res.status(200).json({ message: "Plan de pago externo" });
+    }
     const payerId = await obtenerPayerId(account.subscriptionId);
     if (!account.subscriptionId) {
       return res.status(404).json({ message: "No hay suscripción activa." });
