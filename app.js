@@ -92,14 +92,7 @@ app.use((err, req, res, next) => {
   res.status(500).send("Something went wrong!");
 });
 
-// Middleware para redirigir de HTTP a HTTPS
-app.use((req, res, next) => {
-  if (req.protocol === "http") {
-    console.log("Redirecting HTTP request to HTTPS");
-    return res.redirect(301, `https://${req.headers.host}${req.url}`);
-  }
-  next();
-});
+
 
 // Middleware para redirigir de fidelidapp.cl a www.fidelidapp.cl
 app.use((req, res, next) => {
