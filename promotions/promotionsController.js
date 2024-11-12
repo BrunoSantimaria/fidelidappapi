@@ -742,6 +742,7 @@ exports.getDashboardMetrics = async (req, res) => {
       client.addedpromotions.forEach(promotion => {
         // Filter and count recent visits
         const recentVisits = promotion.visitDates.filter(date => date >= sevenDaysAgo).map(date => moment(date).format('YYYY-MM-DD'));
+
         recentVisits.forEach(date => {
           if (dailyData[date]) dailyData[date].visits++;
         });
@@ -771,11 +772,17 @@ exports.getDashboardMetrics = async (req, res) => {
     const visitFrequency = activeClientsCount > 0 ? parseFloat((totalVisits / activeClientsCount).toFixed(2)) : 0;
     const redemptionFrequency = activeClientsCount > 0 ? parseFloat((totalRedeemCount / activeClientsCount).toFixed(2)) : 0;
 
+    //Ordenar data
+
     const orderedDailyData = await Object.fromEntries(
       Object.entries(dailyData)
         //Sort the dara in asciending order
         .sort((a, b) => new Date(a[0]) - new Date(b[0]))
     );
+
+    //Sort the data in descenging order visitDataByClient,visitDataByPromotion,
+
+    visitDataByClient.sort((a, b) => b.visits - a.visits);
 
     res.status(200).json({
       totalClients,
