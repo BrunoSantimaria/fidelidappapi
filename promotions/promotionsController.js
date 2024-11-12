@@ -736,7 +736,8 @@ exports.getDashboardMetrics = async (req, res) => {
       let clientRedeems = 0;
 
       // Register client registration date for the daily count
-      const registrationDate = moment(client.createdAt).format('YYYY-MM-DD');
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format('YYYY-MM-DD');
+      console.log("Client was created at", registrationDate);
       if (registrationDate in dailyData) dailyData[registrationDate].registrations++;
 
       client.addedpromotions.forEach(promotion => {
@@ -771,6 +772,10 @@ exports.getDashboardMetrics = async (req, res) => {
     const visitFrequency = activeClientsCount > 0 ? parseFloat((totalVisits / activeClientsCount).toFixed(2)) : 0;
     const redemptionFrequency = activeClientsCount > 0 ? parseFloat((totalRedeemCount / activeClientsCount).toFixed(2)) : 0;
 
+    const sortedDailyData = Object.keys(dailyData)
+      .sort((a, b) => new Date(a) - new Date(b)) // Sort dates from oldest to newest
+      .map((date) => ({ date, ...dailyData[date] })); // Convert to an array of objects
+
     res.status(200).json({
       totalClients,
       totalVisits,
@@ -780,7 +785,7 @@ exports.getDashboardMetrics = async (req, res) => {
       redemptionFrequency,
       visitDataByClient,
       visitDataByPromotion,
-      dailyData // Daily metrics for charting trends over the past 7 days
+      dailyData: sortedDailyData, // Sorted daily metrics for charting trends
     });
   } catch (error) {
     console.error(error);

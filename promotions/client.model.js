@@ -7,7 +7,6 @@ const ClientSchema = new mongoose.Schema({
     default: "",
   },
   email: { type: String, unique: true, index: true }, // Índice único
-
   phoneNumber: {
     type: String,
     default: "",
@@ -54,7 +53,8 @@ const ClientSchema = new mongoose.Schema({
       },
     },
   ],
-});
+}
+);
 
 // Create the Client model
 const Client = mongoose.model("Client", ClientSchema);
