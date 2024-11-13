@@ -275,16 +275,7 @@ exports.addClientToPromotion = async (req, res) => {
 
     if (existingPromotion) {
       // **Establecer la cookie para clientId**
-      res.cookie('clientId', client._id.toString(), {
-        path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
-        expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
-        //httpOnly: true, // Solo accesible desde el servidor
-        secure: true, // Solo en HTTPS
-        sameSite: 'None', // Previene el envío de cookies en solicitudes de terceros
-        domain: "fidelidapp.cl", // Replace with your domain
-
-      });
-
+      setClientIdCookie(res, client._id.toString(),promotionId)
       return res.status(400).json({ error: "Client already has this promotion" });
     }
 
@@ -317,13 +308,7 @@ exports.addClientToPromotion = async (req, res) => {
     await account.save();
 
     // **Establecer la cookie para clientId**
-    res.cookie('clientId', client._id.toString(), {
-      path: `/promotion/`, // Hacerla específica para esta promoción
-      expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 100), // 1 año en milisegundos
-      //httpOnly: true, // Solo accesible desde el servidor
-      secure: true, // Solo en HTTPS
-      sameSite: 'Strict', // Previene el envío de cookies en solicitudes de terceros
-    });
+    setClientIdCookie(res, client._id.toString(),promotionId);
 
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
 
@@ -333,6 +318,20 @@ exports.addClientToPromotion = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+const setClientIdCookie = async (res, clientId, promotionId) => {
+  // **Establecer la cookie para clientId**
+  res.cookie('clientId', clientId, {
+    path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
+    
+    //Comentar los siguientes parametros en DEV para que funcione
+    sameSite: 'None', // Previene el envío de cookies en solicitudes de terceros
+    secure: true, // Solo en HTTPS
+    domain: "fidelidapp.cl", // Replace with your domain
+  });
+
+}
 
 exports.getClientPromotion = async (req, res) => {
   const clientId = req.params.cid;
