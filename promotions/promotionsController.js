@@ -280,7 +280,9 @@ exports.addClientToPromotion = async (req, res) => {
         expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
         //httpOnly: true, // Solo accesible desde el servidor
         secure: true, // Solo en HTTPS
-        sameSite: 'Strict', // Previene el envío de cookies en solicitudes de terceros
+        sameSite: 'None', // Previene el envío de cookies en solicitudes de terceros
+        domain: "fidelidapp.cl", // Replace with your domain
+
       });
 
       return res.status(400).json({ error: "Client already has this promotion" });
