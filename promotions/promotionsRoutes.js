@@ -16,7 +16,11 @@ router.post("/restart", promotionController.restartPromotion);
 router.post("/redeem", promotionController.redeemPromotion);
 router.put("/:pid", verifyToken, fileUpload, promotionController.updatePromotion);
 router.post("/complete", promotionController.redeemPromotionByQRCode);
+
 router.post("/redeem-points", promotionController.redeemPoints); // Esta línea es la que agregas
 router.post("/redeemPromotion", promotionController.redeemPromotionPoints);
+
+
+router.post("/getDashboardMetrics", verifyToken, promotionController.getDashboardMetrics);
 
 module.exports = router;
