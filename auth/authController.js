@@ -159,7 +159,7 @@ exports.current = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
-    // Buscar la cuenta primero
+    console.log("Email del usuario actual:", email);
     const account = await Account.findOne({ userEmails: email });
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });

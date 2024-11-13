@@ -26,7 +26,7 @@ const ClientSchema = new mongoose.Schema({
       promotion: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Promotion",
-        required: false,
+        required: true,
       },
       addedDate: {
         type: Date,
@@ -37,24 +37,41 @@ const ClientSchema = new mongoose.Schema({
       },
       actualVisits: {
         type: Number,
-        default: 0, // Default value is 0
+        default: 0,
+      },
+      pointsEarned: {
+        type: Number,
+        default: 0,
       },
       status: {
         type: String,
         enum: ["Active", "Redeemed", "Expired", "Pending"],
-        default: "Active", // Default value is 'Active'
+        default: "Active",
       },
       redeemCount: {
         type: Number,
         default: 0,
       },
-      visitDates: [{ type: Date }], // Array to store visit dates
+      visitDates: [
+        {
+          date: { type: Date, required: true },
+          pointsAdded: {
+            type: Number,
+            required: function () {
+              return this.systemType === "points";
+            },
+          },
+          _id: false,
+        },
+      ],
+
       lastRedeemDate: {
         type: Date,
       },
-      pointsEarned: {
-        type: Number,
-        default: 0, // Default value is 0, will store points earned per promotion
+      systemType: {
+        type: String,
+        required: true,
+        enum: ["visits", "points"],
       },
     },
   ],

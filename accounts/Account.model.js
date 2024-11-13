@@ -1,5 +1,16 @@
 const mongoose = require("mongoose");
 
+const rewardSchema = new mongoose.Schema({
+  points: {
+    type: Number,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+});
+
 const accountSchema = new mongoose.Schema({
   name: { type: String },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -12,15 +23,49 @@ const accountSchema = new mongoose.Schema({
       name: String,
       email: String,
       phoneNumber: String,
-      addedPromotions: [
+      addedpromotions: [
         {
-          promotion: { type: mongoose.Schema.Types.ObjectId, ref: "Promotion" },
-          addedDate: { type: Date, default: Date.now },
-          endDate: { type: Date },
-          actualVisits: { type: Number, default: 0 },
-          status: { type: String, enum: ["Active", "Expired"], default: "Active" },
-          redeemCount: { type: Number, default: 0 },
-          visitDates: [{ type: Date }],
+          promotion: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Promotion",
+            required: true,
+          },
+          addedDate: {
+            type: Date,
+            default: Date.now,
+          },
+          endDate: {
+            type: Date,
+          },
+          actualVisits: {
+            type: Number,
+            default: 0,
+          },
+          pointsEarned: {
+            type: Number,
+            default: 0,
+          },
+          status: {
+            type: String,
+            enum: ["Active", "Redeemed", "Expired", "Pending"],
+            default: "Active",
+          },
+          redeemCount: {
+            type: Number,
+            default: 0,
+          },
+          visitDates: [
+            {
+              date: { type: Date, required: true },
+              pointsAdded: {
+                type: Number,
+                required: function () {
+                  return this.systemType === "points";
+                },
+              },
+              _id: false,
+            },
+          ],
         },
       ],
     },
@@ -53,7 +98,6 @@ const accountSchema = new mongoose.Schema({
   expirationDate: { type: Date, default: null },
   phone: { type: String, default: "" },
   senderEmail: { type: String, default: "" },
-  name: { type: String, default: "" },
   activePayer: { type: Boolean, default: false },
 });
 

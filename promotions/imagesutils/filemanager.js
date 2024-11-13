@@ -42,6 +42,7 @@ function checkFileType(file, cb) {
 
 // File upload middleware
 exports.fileUpload = async (req, res, next) => {
+  console.log(req.body);
   upload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
