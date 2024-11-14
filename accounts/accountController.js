@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
-const { Account } = require("./Account.model");
+const Account = require("./Account.model");
 const User = require("../auth/User.model");
 const { generateQr, sendRefreshQr } = require("../utils/generateQrKeys");
 const chalk = require("chalk");
@@ -11,7 +11,7 @@ const path = require("path");
 const axios = require("axios");
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-const { sendMarketingEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
+const { sendMarketingEmail } = require("../utils/emailSender");
 
 // Decode Base64-encoded service account key
 const base64Credentials = process.env.GOOGLE_CREDENTIALS_BASE64;

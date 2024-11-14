@@ -2,7 +2,7 @@ const User = require("./User.model.js");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const { Account } = require("../accounts/Account.model.js");
+const Account = require("../accounts/Account.model.js");
 const Plan = require("../plans/Plans.model.js");
 const Agenda = require("../agenda/agenda.model.js");
 const log = require("../logger/logger.js");
@@ -159,7 +159,7 @@ exports.current = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
 
-    // Buscar la cuenta primero
+    console.log("Email del usuario actual:", email);
     const account = await Account.findOne({ userEmails: email });
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });

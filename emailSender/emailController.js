@@ -1,6 +1,6 @@
 const { sendMarketingEmailEditor } = require("../utils/emailSenderEditor");
 const { sendMarketingEmail } = require("../utils/emailSender");
-const { Account } = require("../accounts/Account.model");
+const Account = require("../accounts/Account.model");
 const chalk = require("chalk");
 const axios = require("axios");
 const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simultáneamente

@@ -1,38 +1,34 @@
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 
-// Definir el esquema para la cuenta
+const rewardSchema = new mongoose.Schema({
+  points: {
+    type: Number,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+});
+
 const accountSchema = new mongoose.Schema({
-  name: {
-    type: String,
-  },
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-  },
-  logo: {
-    type: String,
-    default: "",
-  },
-  userEmails: [
-    {
-      type: String,
-    },
-  ],
-  subscriptionId: {
-    type: String,
-  },
+  name: { type: String },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  logo: { type: String, default: "" },
+  userEmails: [{ type: String }],
+  subscriptionId: { type: String },
   clients: [
     {
       id: mongoose.Schema.Types.ObjectId,
       name: String,
       email: String,
       phoneNumber: String,
-      addedPromotions: [
+      addedpromotions: [
         {
           promotion: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Promotion",
+            required: true,
           },
           addedDate: {
             type: Date,
@@ -45,9 +41,13 @@ const accountSchema = new mongoose.Schema({
             type: Number,
             default: 0,
           },
+          pointsEarned: {
+            type: Number,
+            default: 0,
+          },
           status: {
             type: String,
-            enum: ["Active", "Expired"],
+            enum: ["Active", "Redeemed", "Expired", "Pending"],
             default: "Active",
           },
           redeemCount: {
@@ -56,7 +56,14 @@ const accountSchema = new mongoose.Schema({
           },
           visitDates: [
             {
-              type: Date,
+              date: { type: Date, required: true },
+              pointsAdded: {
+                type: Number,
+                required: function () {
+                  return this.systemType === "points";
+                },
+              },
+              _id: false,
             },
           ],
         },
@@ -74,75 +81,24 @@ const accountSchema = new mongoose.Schema({
     default: "free",
     enum: ["free", "pro", "premium", "admin"],
   },
-  planExpiration: {
-    type: Date,
-  },
-  isActive: {
-    type: Boolean,
-    default: false,
-  },
-  industry: {
-    type: String,
-  },
-  activeQr: {
-    type: Boolean,
-    default: true,
-  },
-  accountQr: {
-    type: String,
-    required: true,
-    unique: false,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  avatar: {
-    type: String,
-    default: "",
-  },
+  planExpiration: { type: Date },
+  isActive: { type: Boolean, default: false },
+  industry: { type: String },
+  activeQr: { type: Boolean, default: true },
+  accountQr: { type: String, required: true, unique: false },
+  createdAt: { type: Date, default: Date.now },
+  avatar: { type: String, default: "" },
   socialMedia: {
-    instagram: {
-      type: String,
-      default: "",
-    },
-    facebook: {
-      type: String,
-      default: "",
-    },
-    whatsapp: {
-      type: String,
-      default: "",
-    },
+    instagram: { type: String, default: "" },
+    facebook: { type: String, default: "" },
+    whatsapp: { type: String, default: "" },
   },
-  emailsSentCount: {
-    type: Number,
-    default: 0,
-  },
-  lastEmailSentAt: {
-    type: Date,
-    default: null,
-  },
-  expirationDate: {
-    type: Date,
-    default: null,
-  },
-  phone: {
-    type: String,
-    default: "",
-  },
-  senderEmail: {
-    type: String,
-    default: "",
-  },
-  name: {
-    type: String,
-    default: "",
-  },
-  activePayer: {
-    type: Boolean,
-    default: false,
-  },
+  emailsSentCount: { type: Number, default: 0 },
+  lastEmailSentAt: { type: Date, default: null },
+  expirationDate: { type: Date, default: null },
+  phone: { type: String, default: "" },
+  senderEmail: { type: String, default: "" },
+  activePayer: { type: Boolean, default: false },
 });
 
 // Método para registrar un email enviado
@@ -169,6 +125,7 @@ accountSchema.methods.getEmailSentCountLast30Days = async function () {
   return 0;
 };
 
+// Método para actualizar el plan de la cuenta
 accountSchema.methods.updatePlan = async function (plan, expirationDate) {
   this.planStatus = plan;
   this.planExpiration = expirationDate;
@@ -176,6 +133,7 @@ accountSchema.methods.updatePlan = async function (plan, expirationDate) {
   await this.save();
 };
 
+// Crear y exportar el modelo
 const Account = mongoose.model("Account", accountSchema);
 
-module.exports = { Account };
+module.exports = Account;

@@ -1,7 +1,7 @@
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
 const Client = require("../promotions/client.model");
-const { Account } = require("../accounts/Account.model");
+const Account = require("../accounts/Account.model");
 const emailSender = require("../utils/emailSender");
 const { handlePromotionRedemption } = require("../utils/handlePromotionRedemption");
 
@@ -82,7 +82,8 @@ exports.createAgenda = async (req, res) => {
 exports.getAgendas = async (req, res) => {
   const email = req.email;
   const account = await Account.findOne({ userEmails: email });
-
+  console.log(account);
+  console.log(email);
   try {
     const agendas = await Agenda.find({ accountId: account._id });
     res.status(200).json(agendas);

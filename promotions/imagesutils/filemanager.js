@@ -42,11 +42,12 @@ function checkFileType(file, cb) {
 
 // File upload middleware
 exports.fileUpload = async (req, res, next) => {
+  console.log(req.body);
   upload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
     }
-
+    console.log(req);
     if (!req.file) {
       return next();
     }
@@ -66,7 +67,7 @@ exports.fileUpload = async (req, res, next) => {
       blobStream.on("finish", async () => {
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
         console.log("Image uploaded to GCP: ", publicUrl);
-        req.body.imageUrl = publicUrl; // Pasar la URL pública al siguiente middleware
+        req.body.imageUrl = publicUrl;
         next();
       });
 
