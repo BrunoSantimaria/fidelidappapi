@@ -92,6 +92,7 @@ const accountSchema = new mongoose.Schema({
     instagram: { type: String, default: "" },
     facebook: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
+    website: { type: String, default: "" },
   },
   emailsSentCount: { type: Number, default: 0 },
   lastEmailSentAt: { type: Date, default: null },

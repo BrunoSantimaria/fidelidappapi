@@ -489,6 +489,7 @@ exports.getClientPromotion = async (req, res) => {
       instagram: account[0].socialMedia.instagram,
       logo: account[0].logo,
       whatsapp: account[0].socialMedia.whatsapp,
+      website: account[0].socialMedia.website,
     };
     // Obtiene los detalles de la promoción desde la colección de promociones
     const promotionDetails = await Promotion.findById(promotionId);
