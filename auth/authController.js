@@ -74,6 +74,7 @@ exports.signUp = async (req, res) => {
           facebook: "",
           instagram: "",
           whatsapp: "",
+          website: "",
         },
       });
 
@@ -130,6 +131,7 @@ exports.googleSignIn = async (req, res) => {
           facebook: "",
           instagram: "",
           whatsapp: "",
+          website: "",
         },
       });
       await account.save();

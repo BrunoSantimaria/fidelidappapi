@@ -170,12 +170,14 @@ const customizeAccount = async (req, res) => {
       instagram: "",
       facebook: "",
       whatsapp: "",
+      website: "",
     };
 
     if (parsedSocialMedia && typeof parsedSocialMedia === "object") {
       account.socialMedia.instagram = parsedSocialMedia.instagram || "";
       account.socialMedia.facebook = parsedSocialMedia.facebook || "";
       account.socialMedia.whatsapp = parsedSocialMedia.whatsapp || "";
+      account.socialMedia.website = parsedSocialMedia.website || "";
     }
 
     // Actualiza logo si se proporciona imageUrl
