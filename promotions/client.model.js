@@ -63,13 +63,12 @@ const ClientSchema = new mongoose.Schema({
           _id: false,
         },
       ],
-
       lastRedeemDate: {
         type: Date,
       },
       systemType: {
         type: String,
-        required: true,
+        required: false,
         enum: ["visits", "points"],
       },
     },
