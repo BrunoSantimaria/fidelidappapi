@@ -53,7 +53,7 @@ const ClientSchema = new mongoose.Schema({
       },
       visitDates: [
         {
-          date: { type: Date, required: true },
+          date: { type: Date, required: false },
           pointsAdded: {
             type: Number,
             required: function () {
@@ -81,7 +81,6 @@ const ClientSchema = new mongoose.Schema({
     default: 0,
   },
 });
-
 
 // Create the Client model
 const Client = mongoose.model("Client", ClientSchema);
