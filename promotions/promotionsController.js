@@ -12,7 +12,7 @@ const QRCode = require("qrcode");
 const { sendSSEMessageToClient } = require("../events/eventController.js");
 const log = require("../logger/logger.js");
 const { StrToObjectId } = require("../utils/StrToObjectId.js");
-const moment = require('moment');
+const moment = require("moment");
 
 exports.createPromotion = async (req, res) => {
   try {
@@ -259,6 +259,7 @@ exports.getPromotionById = async (req, res) => {
       return {
         name: client.name,
         email: client.email,
+        phoneNumber: client.phoneNumber,
         id: client._id,
         totalPoints: client.totalPoints,
         totalVisits: client.totalVisits,
@@ -317,23 +318,13 @@ exports.getPromotionById = async (req, res) => {
         { $sort: { _id: 1 } },
       ]);
 
-
       pointsPerDay = pointsPerDayAggregate.map((entry) => ({
         date: entry._id,
         points: entry.points,
       }));
     }
 
-    console.log(clients)
-
-    const clientList = clients.map((client) => ({
-      name: client.name,
-      email: client.email,
-      phoneNumber: client.phoneNumber,
-      id: client._id,
-      status: client.addedpromotions[0]?.status || "Unknown",
-    }));
-
+    console.log(clients);
 
     const statistics = {
       TotalClients: clients.length,
@@ -399,7 +390,7 @@ exports.addClientToPromotion = async (req, res) => {
 
     if (existingPromotion) {
       // **Establecer la cookie para clientId**
-      setClientIdCookie(res, client._id.toString(),promotionId)
+      setClientIdCookie(res, client._id.toString(), promotionId);
       return res.status(400).json({ error: "Client already has this promotion" });
     }
 
@@ -447,7 +438,7 @@ exports.addClientToPromotion = async (req, res) => {
     await account.save();
 
     // **Establecer la cookie para clientId**
-    setClientIdCookie(res, client._id.toString(),promotionId);
+    setClientIdCookie(res, client._id.toString(), promotionId);
 
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
 
@@ -460,17 +451,16 @@ exports.addClientToPromotion = async (req, res) => {
 
 const setClientIdCookie = async (res, clientId, promotionId) => {
   // **Establecer la cookie para clientId**
-  res.cookie('clientId', clientId, {
+  res.cookie("clientId", clientId, {
     path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
     expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
-    
+
     //Comentar los siguientes parametros en DEV para que funcione
-    sameSite: 'None', // Previene el envío de cookies en solicitudes de terceros
+    sameSite: "None", // Previene el envío de cookies en solicitudes de terceros
     secure: true, // Solo en HTTPS
     domain: "fidelidapp.cl", // Replace with your domain
   });
-
-}
+};
 
 exports.getClientPromotion = async (req, res) => {
   const clientId = req.params.cid;
@@ -971,7 +961,6 @@ exports.redeemPromotion = async (req, res) => {
   }
 };
 
-
 exports.redeemPromotionPoints = async (req, res) => {
   try {
     const { promotionId, clientEmail, rewardId } = req.body;
@@ -1105,22 +1094,21 @@ exports.redeemPromotionPoints = async (req, res) => {
   }
 };
 
-
 exports.getDashboardMetrics = async (req, res) => {
   try {
     // Fetch account using email
-    const account = await Account.findOne({ userEmails: req.email }).populate('promotions');
+    const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
     // Retrieve all clients associated with this account
-    const clients = await Client.find({ 'addedAccounts.accountId': account._id });
+    const clients = await Client.find({ "addedAccounts.accountId": account._id });
 
     // Filter promotions based on account
-    const filteredClients = clients.map(client => {
-      client.addedpromotions = client.addedpromotions.filter(promotion =>
-        account.promotions.some(accPromotion => accPromotion._id.toString() === promotion.promotion.toString())
+    const filteredClients = clients.map((client) => {
+      client.addedpromotions = client.addedpromotions.filter((promotion) =>
+        account.promotions.some((accPromotion) => accPromotion._id.toString() === promotion.promotion.toString())
       );
       return client;
     });
@@ -1132,28 +1120,28 @@ exports.getDashboardMetrics = async (req, res) => {
     const visitDataByClient = [];
     const visitDataByPromotion = {};
 
-    const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
+    const sevenDaysAgo = moment().subtract(7, "days").startOf("day");
     const dailyData = {};
 
     // Initialize daily data structure for the past 7 days
     for (let i = 0; i < 7; i++) {
-      const date = moment().subtract(i, 'days').format('YYYY-MM-DD');
+      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
       dailyData[date] = { registrations: 0, visits: 0, redeems: 0 };
     }
 
-    filteredClients.forEach(client => {
+    filteredClients.forEach((client) => {
       let clientVisits = 0;
       let clientRedeems = 0;
 
       // Register client registration date for the daily count
-      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format('YYYY-MM-DD');
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format("YYYY-MM-DD");
       if (registrationDate in dailyData) dailyData[registrationDate].registrations++;
 
-      client.addedpromotions.forEach(promotion => {
+      client.addedpromotions.forEach((promotion) => {
         // Filter and count recent visits
-        const recentVisits = promotion.visitDates.filter(date => date >= sevenDaysAgo).map(date => moment(date).format('YYYY-MM-DD'));
+        const recentVisits = promotion.visitDates.filter((date) => date >= sevenDaysAgo).map((date) => moment(date).format("YYYY-MM-DD"));
 
-        recentVisits.forEach(date => {
+        recentVisits.forEach((date) => {
           if (dailyData[date]) dailyData[date].visits++;
         });
 
