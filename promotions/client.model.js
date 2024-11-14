@@ -7,7 +7,6 @@ const ClientSchema = new mongoose.Schema({
     default: "",
   },
   email: { type: String, unique: true, index: true }, // Índice único
-
   phoneNumber: {
     type: String,
     default: "",
@@ -75,12 +74,14 @@ const ClientSchema = new mongoose.Schema({
       },
     },
   ],
+
   totalPoints: {
     // Nuevo campo para almacenar el total de puntos acumulados
     type: Number,
     default: 0,
   },
 });
+
 
 // Create the Client model
 const Client = mongoose.model("Client", ClientSchema);

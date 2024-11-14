@@ -10,9 +10,9 @@ const fs = require("fs");
 const mongoose = require("mongoose");
 const QRCode = require("qrcode");
 const { sendSSEMessageToClient } = require("../events/eventController.js");
-
 const log = require("../logger/logger.js");
 const { StrToObjectId } = require("../utils/StrToObjectId.js");
+const moment = require('moment');
 
 exports.createPromotion = async (req, res) => {
   try {
@@ -219,7 +219,11 @@ exports.getPromotionById = async (req, res) => {
         $project: {
           name: 1,
           email: 1,
+
           totalPoints: 1,
+
+          phoneNumber: 1,
+
           addedpromotions: {
             $filter: {
               input: "$addedpromotions",
@@ -313,11 +317,23 @@ exports.getPromotionById = async (req, res) => {
         { $sort: { _id: 1 } },
       ]);
 
+
       pointsPerDay = pointsPerDayAggregate.map((entry) => ({
         date: entry._id,
         points: entry.points,
       }));
     }
+
+    console.log(clients)
+
+    const clientList = clients.map((client) => ({
+      name: client.name,
+      email: client.email,
+      phoneNumber: client.phoneNumber,
+      id: client._id,
+      status: client.addedpromotions[0]?.status || "Unknown",
+    }));
+
 
     const statistics = {
       TotalClients: clients.length,
@@ -382,6 +398,8 @@ exports.addClientToPromotion = async (req, res) => {
     const existingPromotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
 
     if (existingPromotion) {
+      // **Establecer la cookie para clientId**
+      setClientIdCookie(res, client._id.toString(),promotionId)
       return res.status(400).json({ error: "Client already has this promotion" });
     }
 
@@ -428,6 +446,9 @@ exports.addClientToPromotion = async (req, res) => {
     await client.save();
     await account.save();
 
+    // **Establecer la cookie para clientId**
+    setClientIdCookie(res, client._id.toString(),promotionId);
+
     log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
 
     res.status(201).json({ message: "Client added to promotion successfully", client });
@@ -436,6 +457,20 @@ exports.addClientToPromotion = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+const setClientIdCookie = async (res, clientId, promotionId) => {
+  // **Establecer la cookie para clientId**
+  res.cookie('clientId', clientId, {
+    path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
+    
+    //Comentar los siguientes parametros en DEV para que funcione
+    sameSite: 'None', // Previene el envío de cookies en solicitudes de terceros
+    secure: true, // Solo en HTTPS
+    domain: "fidelidapp.cl", // Replace with your domain
+  });
+
+}
 
 exports.getClientPromotion = async (req, res) => {
   const clientId = req.params.cid;
@@ -937,6 +972,7 @@ exports.redeemPromotion = async (req, res) => {
   }
 };
 
+
 exports.redeemPromotionPoints = async (req, res) => {
   try {
     const { promotionId, clientEmail, rewardId } = req.body;
@@ -1067,6 +1103,112 @@ exports.redeemPromotionPoints = async (req, res) => {
   } catch (error) {
     console.error("Error redeeming promotion:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+exports.getDashboardMetrics = async (req, res) => {
+  try {
+    // Fetch account using email
+    const account = await Account.findOne({ userEmails: req.email }).populate('promotions');
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    // Retrieve all clients associated with this account
+    const clients = await Client.find({ 'addedAccounts.accountId': account._id });
+
+    // Filter promotions based on account
+    const filteredClients = clients.map(client => {
+      client.addedpromotions = client.addedpromotions.filter(promotion =>
+        account.promotions.some(accPromotion => accPromotion._id.toString() === promotion.promotion.toString())
+      );
+      return client;
+    });
+
+    let totalVisits = 0;
+    let totalRedeemCount = 0;
+    let activeClientsCount = 0;
+    const uniquePromotions = new Set();
+    const visitDataByClient = [];
+    const visitDataByPromotion = {};
+
+    const sevenDaysAgo = moment().subtract(7, 'days').startOf('day');
+    const dailyData = {};
+
+    // Initialize daily data structure for the past 7 days
+    for (let i = 0; i < 7; i++) {
+      const date = moment().subtract(i, 'days').format('YYYY-MM-DD');
+      dailyData[date] = { registrations: 0, visits: 0, redeems: 0 };
+    }
+
+    filteredClients.forEach(client => {
+      let clientVisits = 0;
+      let clientRedeems = 0;
+
+      // Register client registration date for the daily count
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format('YYYY-MM-DD');
+      if (registrationDate in dailyData) dailyData[registrationDate].registrations++;
+
+      client.addedpromotions.forEach(promotion => {
+        // Filter and count recent visits
+        const recentVisits = promotion.visitDates.filter(date => date >= sevenDaysAgo).map(date => moment(date).format('YYYY-MM-DD'));
+
+        recentVisits.forEach(date => {
+          if (dailyData[date]) dailyData[date].visits++;
+        });
+
+        const recentRedeems = promotion.redeemCount;
+        totalVisits += recentVisits.length;
+        totalRedeemCount += recentRedeems;
+        uniquePromotions.add(promotion.promotion.toString());
+
+        clientVisits += recentVisits.length;
+        clientRedeems += recentRedeems;
+
+        // Track visits and redemptions by promotion for table
+        if (!visitDataByPromotion[promotion.promotion]) {
+          visitDataByPromotion[promotion.promotion] = { visits: 0, redeems: 0 };
+        }
+        visitDataByPromotion[promotion.promotion].visits += recentVisits.length;
+        visitDataByPromotion[promotion.promotion].redeems += recentRedeems;
+      });
+
+      if (clientVisits > 0) activeClientsCount++;
+      visitDataByClient.push({ client: client.email, visits: clientVisits, redeems: clientRedeems });
+    });
+
+    const totalClients = filteredClients.length;
+    const promotionsAvailable = uniquePromotions.size;
+    const visitFrequency = activeClientsCount > 0 ? parseFloat((totalVisits / activeClientsCount).toFixed(2)) : 0;
+    const redemptionFrequency = activeClientsCount > 0 ? parseFloat((totalRedeemCount / activeClientsCount).toFixed(2)) : 0;
+
+    //Ordenar data
+
+    const orderedDailyData = await Object.fromEntries(
+      Object.entries(dailyData)
+        //Sort the dara in asciending order
+        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+    );
+
+    //Sort the data in descenging order visitDataByClient,visitDataByPromotion,
+
+    visitDataByClient.sort((a, b) => b.visits - a.visits);
+
+    res.status(200).json({
+      totalClients,
+      totalVisits,
+      promotionsRedeemed: totalRedeemCount,
+      promotionsAvailable,
+      visitFrequency,
+      redemptionFrequency,
+      visitDataByClient,
+      visitDataByPromotion,
+      dailyData: orderedDailyData,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error retrieving dashboard metrics" });
   }
 };
 
