@@ -4,9 +4,13 @@ const Account = require("../accounts/Account.model");
 const chalk = require("chalk");
 const axios = require("axios");
 const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simultáneamente
+const EmailHistory = require("./EmailHistory");
 
 async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit) {
   let emailsSentCount = 0;
+  let successfulSends = 0;
+  let failedSends = 0;
+  const recipients = [];
 
   // Obtener remitentes verificados una sola vez al inicio
   const response = await axios.get("https://api.sendgrid.com/v3/verified_senders", {
@@ -21,6 +25,13 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
   const sendEmail = async (client) => {
     if (!client || !client.email || !client.name) {
       console.error(`Invalid client data: ${JSON.stringify(client)}`);
+      recipients.push({
+        email: client?.email || "unknown",
+        name: client?.name || "unknown",
+        status: "failed",
+        error: "Invalid client data",
+      });
+      failedSends++;
       return;
     }
 
@@ -40,14 +51,27 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
       console.log(chalk.yellow("Sending email to:", client.email));
       await sendMarketingEmailEditor(emailData);
       emailsSentCount++;
+      successfulSends++;
+      recipients.push({
+        email: client.email,
+        name: client.name,
+        status: "success",
+      });
     } catch (error) {
       console.error("Error sending email:", error);
+      failedSends++;
+      recipients.push({
+        email: client.email,
+        name: client.name,
+        status: "failed",
+        error: error.message,
+      });
     }
   };
 
   // Procesar en lotes más pequeños
-  const BATCH_SIZE = 50; // Reducir el tamaño del lote
-  const DELAY_BETWEEN_BATCHES = 1000; // Añadir 1 segundo de retraso entre lotes
+  const BATCH_SIZE = 50;
+  const DELAY_BETWEEN_BATCHES = 1000;
 
   for (let i = 0; i < clients.length; i += BATCH_SIZE) {
     const batch = clients.slice(i, i + BATCH_SIZE);
@@ -59,6 +83,18 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
       await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
   }
+
+  // Guardar el historial de envío
+  await EmailHistory.create({
+    accountId: account._id,
+    subject,
+    totalEmailsSent: emailsSentCount,
+    successfulSends,
+    failedSends,
+    recipients,
+    template,
+    senderEmail: fromEmail,
+  });
 
   // Actualizar el contador de correos enviados y la fecha del último envío
   account.emailsSentCount += emailsSentCount;
