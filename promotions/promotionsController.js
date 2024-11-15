@@ -122,12 +122,8 @@ exports.getPromotions = async (req, res) => {
     // Obtener los IDs de promociones
     const promotionIds = promotions.map((promotion) => promotion._id.toString());
 
-    console.log("Promociones encontradas:", promotions);
-
     // Buscar clientes con promociones asociadas a los IDs de promoción del usuario
     const clients = await Client.find({ "addedpromotions.promotion": { $in: promotionIds } });
-
-    console.log("Clientes encontrados:", clients);
 
     // Calcular métricas
     let totalVisitsCount = 0;
@@ -137,18 +133,12 @@ exports.getPromotions = async (req, res) => {
     // Calcular métricas de visitas, puntos y redenciones
     clients.forEach((client) => {
       (client.addedpromotions || []).forEach((promotionEntry) => {
-        console.log("Promoción del cliente:", promotionEntry);
-        console.log("VisitDates de la promoción:", promotionEntry.visitDates); // Verifica el contenido de visitDates
-
         if (promotionIds.includes(promotionEntry.promotion.toString())) {
-          console.log("La promoción es del usuario");
-
           const promotionDetails = promotions.find((promo) => promo._id.toString() === promotionEntry.promotion.toString());
           if (promotionDetails) {
             // Verificación adicional de tipo de sistema
             if (promotionDetails.systemType === "points") {
               totalPointsCount += promotionEntry.pointsEarned || 0;
-              console.log("Puntos acumulados:", promotionEntry.pointsEarned);
             }
             redeemedGiftsCount += typeof promotionEntry.redeemCount === "number" ? promotionEntry.redeemCount : 0;
           }
@@ -156,9 +146,7 @@ exports.getPromotions = async (req, res) => {
           // Revisa y suma la cantidad de fechas de visita
           if (Array.isArray(promotionEntry.visitDates)) {
             totalVisitsCount += promotionEntry.visitDates.length;
-            console.log("Visitas acumuladas:", promotionEntry.visitDates.length);
           } else {
-            console.warn("visitDates no es un array en esta promoción:", promotionEntry);
           }
         }
       });
@@ -323,8 +311,6 @@ exports.getPromotionById = async (req, res) => {
         points: entry.points,
       }));
     }
-
-    console.log(clients);
 
     const statistics = {
       TotalClients: clients.length,
