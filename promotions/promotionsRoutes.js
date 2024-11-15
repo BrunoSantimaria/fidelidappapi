@@ -19,7 +19,7 @@ router.post("/complete", promotionController.redeemPromotionByQRCode);
 
 router.post("/redeem-points", promotionController.redeemPoints); // Esta línea es la que agregas
 router.post("/redeemPromotion", promotionController.redeemPromotionPoints);
-
+router.get("/registrations", promotionController.getPromotionRegistrations);
 
 router.post("/getDashboardMetrics", verifyToken, promotionController.getDashboardMetrics);
 
