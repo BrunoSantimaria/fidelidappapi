@@ -8,33 +8,27 @@ const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simult
 async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit) {
   let emailsSentCount = 0;
 
+  // Obtener remitentes verificados una sola vez al inicio
+  const response = await axios.get("https://api.sendgrid.com/v3/verified_senders", {
+    headers: {
+      Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+    },
+  });
+  const verifiedSender = response.data.results.find((sender) => sender.from_email === account.senderEmail && sender.verified);
+  const fromEmail = verifiedSender ? account.senderEmail : "contacto@fidelidapp.cl";
+
   // Función para enviar un correo individual
   const sendEmail = async (client) => {
-    console.log(client);
-
-    // Validar que el cliente tiene las propiedades necesarias
     if (!client || !client.email || !client.name) {
       console.error(`Invalid client data: ${JSON.stringify(client)}`);
-      return; // Saltar correos inválidos
+      return;
     }
 
-    // Verificar si al enviar este correo, se superará el límite mensual
     if (emailsSentLast30Days + emailsSentCount >= emailLimit) {
       throw new Error(`Cannot send more emails. Monthly email limit of ${emailLimit} reached.`);
     }
 
     try {
-      // Obtener remitentes verificados de SendGrid
-      const response = await axios.get("https://api.sendgrid.com/v3/verified_senders", {
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-        },
-      });
-
-      const verifiedSender = response.data.results.find((sender) => sender.from_email === account.senderEmail && sender.verified);
-
-      // Preparar el correo con el remitente verificado o un remitente de respaldo
-      const fromEmail = verifiedSender ? account.senderEmail : "contacto@fidelidapp.cl";
       const personalizedTemplate = template.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
       const emailData = {
         to: [client.email],
@@ -51,16 +45,20 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
     }
   };
 
-  const promises = [];
-  for (const client of clients) {
-    if (promises.length >= MAX_CONCURRENT_EMAILS) {
-      await Promise.all(promises); // Espera a que se envíen los correos en progreso
-      promises.length = 0; // Limpia el arreglo de promesas
-    }
-    promises.push(sendEmail(client));
-  }
+  // Procesar en lotes más pequeños
+  const BATCH_SIZE = 50; // Reducir el tamaño del lote
+  const DELAY_BETWEEN_BATCHES = 1000; // Añadir 1 segundo de retraso entre lotes
 
-  await Promise.all(promises); // Espera a que se completen los correos restantes
+  for (let i = 0; i < clients.length; i += BATCH_SIZE) {
+    const batch = clients.slice(i, i + BATCH_SIZE);
+    const promises = batch.map((client) => sendEmail(client));
+
+    await Promise.all(promises);
+
+    if (i + BATCH_SIZE < clients.length) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+    }
+  }
 
   // Actualizar el contador de correos enviados y la fecha del último envío
   account.emailsSentCount += emailsSentCount;

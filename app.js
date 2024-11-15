@@ -4,12 +4,16 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
+const cron = require("node-cron");
+const Account = require("./accounts/Account.model");
+
 require("./utils/cronJob");
+require("./automationRules/automationsCronJob");
+require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
 
-const cron = require("node-cron");
-const Account = require("./accounts/Account.model");
+
 
 dotenv.config();
 
