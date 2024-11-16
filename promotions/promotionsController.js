@@ -781,9 +781,9 @@ exports.redeemVisits = async (req, res) => {
       return res.status(400).json({ error: "Promotion already expired" });
     }
 
-    if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
-      return res.status(400).json({ error: "Promotion already added today" });
-    }
+    //if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
+      //return res.status(400).json({ error: "Promotion already added today" });
+    //}
 
     // Update the visits data
     promotion.actualVisits += 1;
