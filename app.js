@@ -12,9 +12,6 @@ require("./automationRules/automationsCronJob");
 require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
-
-
-
 dotenv.config();
 
 // Conexión a la base de datos
@@ -86,7 +83,7 @@ app.use("/accounts/", accountRoutes);
 app.use("/api/agenda/", agendaRoutes);
 app.use("/api/email/", emailRoutes);
 app.use("/api/clients", clientRoutes);
-app.use("/api/automationRules", automationRulesRoutes);
+app.use("/api/automation-rules", automationRulesRoutes);
 app.use("/api/mercadopago", mercadoPagoRoutes);
 app.use("/api/leadsemailparser", leadsemailparserRoutes);
 app.use("/api/template/", templateRoutes);
