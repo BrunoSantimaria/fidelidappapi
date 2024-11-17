@@ -781,21 +781,23 @@ exports.redeemVisits = async (req, res) => {
       return res.status(400).json({ error: "Promotion already expired" });
     }
 
-    // Corregir la validación de fecha
-    const today = new Date().toDateString();
-    if (
-      promotion.visitDates.some((visitDate) => {
-        // Asegurarse de que visitDate sea un objeto Date válido
-        const date = visitDate instanceof Date ? visitDate : new Date(visitDate);
-        return date.toDateString() === today;
-      })
-    ) {
-      return res.status(400).json({ error: "Promotion already added today" });
+    // Validación mejorada de visita diaria
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Establecer hora a 00:00:00
+
+    const hasVisitedToday = promotion.visitDates.some((visitDate) => {
+      const date = new Date(visitDate);
+      date.setHours(0, 0, 0, 0);
+      return date.getTime() === today.getTime();
+    });
+
+    if (hasVisitedToday) {
+      return res.status(400).json({ error: "Ya has registrado una visita hoy" });
     }
 
     // Update the visits data
     promotion.actualVisits += 1;
-    promotion.visitDates.push(new Date()); // Asegurarse de guardar como objeto Date
+    promotion.visitDates.push(new Date());
 
     console.log("Promotion:", promotion);
 
