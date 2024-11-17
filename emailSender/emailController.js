@@ -4,37 +4,42 @@ const Account = require("../accounts/Account.model");
 const chalk = require("chalk");
 const axios = require("axios");
 const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simultáneamente
+const EmailHistory = require("./EmailHistory");
 
 async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit) {
   let emailsSentCount = 0;
+  let successfulSends = 0;
+  let failedSends = 0;
+  const recipients = [];
+
+  // Obtener remitentes verificados una sola vez al inicio
+  const response = await axios.get("https://api.sendgrid.com/v3/verified_senders", {
+    headers: {
+      Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+    },
+  });
+  const verifiedSender = response.data.results.find((sender) => sender.from_email === account.senderEmail && sender.verified);
+  const fromEmail = verifiedSender ? account.senderEmail : "contacto@fidelidapp.cl";
 
   // Función para enviar un correo individual
   const sendEmail = async (client) => {
-    console.log(client);
-
-    // Validar que el cliente tiene las propiedades necesarias
     if (!client || !client.email || !client.name) {
       console.error(`Invalid client data: ${JSON.stringify(client)}`);
-      return; // Saltar correos inválidos
+      recipients.push({
+        email: client?.email || "unknown",
+        name: client?.name || "unknown",
+        status: "failed",
+        error: "Invalid client data",
+      });
+      failedSends++;
+      return;
     }
 
-    // Verificar si al enviar este correo, se superará el límite mensual
     if (emailsSentLast30Days + emailsSentCount >= emailLimit) {
       throw new Error(`Cannot send more emails. Monthly email limit of ${emailLimit} reached.`);
     }
 
     try {
-      // Obtener remitentes verificados de SendGrid
-      const response = await axios.get("https://api.sendgrid.com/v3/verified_senders", {
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-        },
-      });
-
-      const verifiedSender = response.data.results.find((sender) => sender.from_email === account.senderEmail && sender.verified);
-
-      // Preparar el correo con el remitente verificado o un remitente de respaldo
-      const fromEmail = verifiedSender ? account.senderEmail : "contacto@fidelidapp.cl";
       const personalizedTemplate = template.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
       const emailData = {
         to: [client.email],
@@ -46,21 +51,50 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
       console.log(chalk.yellow("Sending email to:", client.email));
       await sendMarketingEmailEditor(emailData);
       emailsSentCount++;
+      successfulSends++;
+      recipients.push({
+        email: client.email,
+        name: client.name,
+        status: "success",
+      });
     } catch (error) {
       console.error("Error sending email:", error);
+      failedSends++;
+      recipients.push({
+        email: client.email,
+        name: client.name,
+        status: "failed",
+        error: error.message,
+      });
     }
   };
 
-  const promises = [];
-  for (const client of clients) {
-    if (promises.length >= MAX_CONCURRENT_EMAILS) {
-      await Promise.all(promises); // Espera a que se envíen los correos en progreso
-      promises.length = 0; // Limpia el arreglo de promesas
+  // Procesar en lotes más pequeños
+  const BATCH_SIZE = 50;
+  const DELAY_BETWEEN_BATCHES = 1000;
+
+  for (let i = 0; i < clients.length; i += BATCH_SIZE) {
+    const batch = clients.slice(i, i + BATCH_SIZE);
+    const promises = batch.map((client) => sendEmail(client));
+
+    await Promise.all(promises);
+
+    if (i + BATCH_SIZE < clients.length) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
-    promises.push(sendEmail(client));
   }
 
-  await Promise.all(promises); // Espera a que se completen los correos restantes
+  // Guardar el historial de envío
+  await EmailHistory.create({
+    accountId: account._id,
+    subject,
+    totalEmailsSent: emailsSentCount,
+    successfulSends,
+    failedSends,
+    recipients,
+    template,
+    senderEmail: fromEmail,
+  });
 
   // Actualizar el contador de correos enviados y la fecha del último envío
   account.emailsSentCount += emailsSentCount;

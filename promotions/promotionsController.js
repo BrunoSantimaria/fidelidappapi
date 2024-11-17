@@ -13,6 +13,7 @@ const { sendSSEMessageToClient } = require("../events/eventController.js");
 const log = require("../logger/logger.js");
 const { StrToObjectId } = require("../utils/StrToObjectId.js");
 const moment = require("moment");
+const PromotionRegistration = require("./PromotionRegistration.model");
 
 exports.createPromotion = async (req, res) => {
   try {
@@ -426,9 +427,27 @@ exports.addClientToPromotion = async (req, res) => {
     // **Establecer la cookie para clientId**
     setClientIdCookie(res, client._id.toString(), promotionId);
 
-    log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title}`);
+    // Crear el registro de la promoción
+    const promotionRegistration = new PromotionRegistration({
+      accountId: account._id,
+      clientId: client._id,
+      promotionId: promotionId,
+      clientEmail: clientEmail,
+      clientName: clientName || "Sin nombre",
+      promotionTitle: existingPromotiondata.title,
+      systemType: existingPromotiondata.systemType,
+    });
 
-    res.status(201).json({ message: "Client added to promotion successfully", client });
+    // Guardar el registro
+    await promotionRegistration.save();
+
+    log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title} (Account: ${account._id})`);
+
+    res.status(201).json({
+      message: "Client added to promotion successfully",
+      client,
+      registrationId: promotionRegistration._id,
+    });
   } catch (error) {
     console.error("Error adding client to promotion:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -762,9 +781,9 @@ exports.redeemVisits = async (req, res) => {
       return res.status(400).json({ error: "Promotion already expired" });
     }
 
-    if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
-      return res.status(400).json({ error: "Promotion already added today" });
-    }
+    //if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
+      //return res.status(400).json({ error: "Promotion already added today" });
+    //}
 
     // Update the visits data
     promotion.actualVisits += 1;
@@ -1328,3 +1347,38 @@ cron.schedule("0 0 * * *", async () => {
     console.error("Error al ejecutar cron job:", error);
   }
 });
+
+exports.getPromotionRegistrations = async (req, res) => {
+  try {
+    const { accountId, startDate, endDate } = req.query;
+
+    let query = {};
+
+    if (accountId) {
+      query.accountId = accountId;
+    }
+
+    if (startDate || endDate) {
+      query.registrationDate = {};
+      if (startDate) {
+        query.registrationDate.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.registrationDate.$lte = new Date(endDate);
+      }
+    }
+
+    const registrations = await PromotionRegistration.find(query)
+      .sort({ registrationDate: -1 })
+      .populate("promotionId", "title description")
+      .populate("clientId", "name email phoneNumber");
+
+    res.status(200).json({
+      registrations,
+      total: registrations.length,
+    });
+  } catch (error) {
+    console.error("Error fetching promotion registrations:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};

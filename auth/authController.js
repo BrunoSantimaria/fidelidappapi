@@ -4,216 +4,199 @@ const { OAuth2Client } = require("google-auth-library");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const Account = require("../accounts/Account.model.js");
 const Plan = require("../plans/Plans.model.js");
-const Agenda = require("../agenda/agenda.model.js");
 const log = require("../logger/logger.js");
 const { generateQr, sendQrCode } = require("../utils/generateQrKeys.js");
-// Controlador para iniciar sesión
+
+// Constantes para mensajes de error
+const ERROR_MESSAGES = {
+  INVALID_CREDENTIALS: "Credenciales inválidas",
+  SERVER_ERROR: "Error interno del servidor",
+  MISSING_FIELDS: "Faltan campos obligatorios",
+  EMAIL_EXISTS: "El email ya está asociado a una cuenta",
+  MISSING_TOKEN: "Token no proporcionado",
+  ACCOUNT_NOT_FOUND: "Cuenta no encontrada",
+  MISSING_GOOGLE_TOKEN: "Token de Google no proporcionado",
+};
+
+// Función auxiliar para generar JWT
+const generateToken = (user) => {
+  return jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: "30d" });
+};
+
+// Función auxiliar para crear cuenta
+const createAccount = async (userId, email) => {
+  const qrCode = await generateQr();
+  const account = new Account({
+    owner: userId,
+    userEmails: [email],
+    accountQr: qrCode,
+    socialMedia: {
+      facebook: "",
+      instagram: "",
+      whatsapp: "",
+      website: "",
+    },
+  });
+  await account.save();
+  await sendQrCode(account);
+  return account;
+};
+
 exports.signIn = async (req, res) => {
   try {
-    // Obtener datos del cuerpo de la solicitud
     const { email, password } = req.body;
 
-    // Verificar si el usuario existe
-    const user = await User.findOne({ email });
-    if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ message: "Credenciales inválidas" });
+    if (!email || !password) {
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
     }
 
-    // Generar token de autenticación
-    const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
+    const user = await User.findOne({ email });
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ message: ERROR_MESSAGES.INVALID_CREDENTIALS });
+    }
 
-    log.logAction(email, "login", "Login Successful");
+    const token = generateToken(user);
+    log.logAction(email, "login", "Login exitoso");
 
-    // Send response with the token
-    res.status(200).json({ token });
+    res.status(200).json({ token, user: { email: user.email, name: user.name } });
   } catch (error) {
-    console.error("Error al iniciar sesión:", error);
-    res.status(500).json({ message: "Error del servidor" });
+    console.error("Error en signin:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 };
 
-// Controlador para registrar un nuevo usuario
 exports.signUp = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validar que vengan los campos
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Faltan campos obligatorios" });
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
     }
 
-    // Verificar si el usuario ya existe
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: "El email ya esta asociado a una cuenta" });
+      return res.status(409).json({ message: ERROR_MESSAGES.EMAIL_EXISTS });
     }
 
-    // Verificar si el email ya está asociado a una cuenta
+    const user = new User({ name, email, password });
+    await user.save();
+
     const existingAccount = await Account.findOne({ userEmails: email });
-
-    if (existingAccount) {
-      // Si el email ya está asociado a una cuenta, solo crear el usuario
-      const user = new User({ name, email, password });
-      await user.save();
-
-      log.logAction(email, "signup", "Usuario Creado y Agregado a Cuenta Existente");
-      return res.status(201).json(user);
-    } else {
-      // Si no hay cuenta asociada, crear una nueva cuenta y el usuario
-      const user = new User({ name, email, password });
-      await user.save();
-
-      const qrCode = await generateQr();
-
-      // Agregar objeto de redes sociales
-      const account = new Account({
-        owner: user._id,
-        userEmails: [email],
-        accountQr: qrCode,
-        socialMedia: {
-          facebook: "",
-          instagram: "",
-          whatsapp: "",
-          website: "",
-        },
+    if (!existingAccount) {
+      const account = await createAccount(user._id, email);
+      log.logAction(email, "signup", "Usuario y cuenta creados");
+      return res.status(201).json({
+        user: { email: user.email, name: user.name },
+        account,
       });
-
-      await account.save();
-      await sendQrCode(account);
-      log.logAction(email, "signup", "Usuario y Cuentas Creados");
-
-      return res.status(201).json({ user, account });
     }
+
+    log.logAction(email, "signup", "Usuario creado y agregado a cuenta existente");
+    return res.status(201).json({
+      user: { email: user.email, name: user.name },
+    });
   } catch (error) {
-    console.error("Error creating user:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error en signup:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 };
 
-// Controlador para autenticarse con Google
 exports.googleSignIn = async (req, res) => {
   try {
     const { googleIdToken } = req.body;
 
     if (!googleIdToken) {
-      return res.status(400).json({ message: "Missing Google ID token" });
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_GOOGLE_TOKEN });
     }
 
-    // Verify Google ID token
     const ticket = await client.verifyIdToken({
       idToken: googleIdToken,
-      audience: process.env.GOOGLE_CLIENT_ID, // Your Google OAuth2 client ID
+      audience: process.env.GOOGLE_CLIENT_ID,
     });
-    const payload = ticket.getPayload();
 
-    // Extract user data
-    const { email, name } = payload;
-    // Check if user exists in the database (pseudo code)
+    const { email, name } = ticket.getPayload();
     let user = await User.findOne({ email });
 
-    // If user doesn't exist, create a new user
     if (!user) {
-      user = new User({ email, name });
-      await user.save();
-      console.log("User created:", user);
+      user = await User.create({ email, name });
     }
 
-    // Check if account exists for the user
     const account = await Account.findOne({ userEmails: email });
-
     if (!account) {
-      const qrCode = await generateQr();
-      const account = new Account({
-        owner: user._id,
-        userEmails: [email],
-        accountQr: qrCode,
-        socialMedia: {
-          facebook: "",
-          instagram: "",
-          whatsapp: "",
-          website: "",
-        },
-      });
-      await account.save();
-      await sendQrCode(account);
-      log.logAction(email, "signup", "Usuario y Cuentas Creados");
+      await createAccount(user._id, email);
+      log.logAction(email, "google_signup", "Usuario y cuenta creados via Google");
     }
 
-    const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, process.env.JWT_SECRET);
-
-    res.status(200).json({ token });
+    const token = generateToken(user);
+    res.status(200).json({
+      token,
+      user: { email: user.email, name: user.name },
+    });
   } catch (error) {
-    console.error("Error signing in with Google:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error en Google signin:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 };
 
-// Route to handle /auth/current endpoint
 exports.current = async (req, res) => {
   try {
-    // Obtener el token del encabezado
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
-      return res.status(401).json({ message: "Token no proporcionado" });
+      return res.status(401).json({ message: ERROR_MESSAGES.MISSING_TOKEN });
     }
 
-    // Verificar el token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const email = decoded.email;
+    const account = await Account.findOne({ userEmails: decoded.email }).select("-__v").lean();
 
-    console.log("Email del usuario actual:", email);
-    const account = await Account.findOne({ userEmails: email });
     if (!account) {
-      return res.status(404).json({ message: "Cuenta no encontrada" });
+      return res.status(404).json({ message: ERROR_MESSAGES.ACCOUNT_NOT_FOUND });
     }
 
-    // Obtener el plan en base al estado de la cuenta
-    const plan = await Plan.findOne({ planStatus: account.planStatus });
+    const plan = await Plan.findOne({ planStatus: account.planStatus }).select("-__v").lean();
 
-    // Generar un nuevo QR solo si no existe
     if (!account.accountQr) {
       const qrCode = await generateQr();
+      await Account.findByIdAndUpdate(account._id, { accountQr: qrCode });
       account.accountQr = qrCode;
-      await account.save();
       await sendQrCode(account);
     }
 
-    res.status(200).json({ name: req.name, accounts: account, plan });
+    res.status(200).json({
+      name: decoded.name,
+      accounts: account,
+      plan,
+    });
   } catch (error) {
-    console.error("Error al obtener el usuario actual:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error en current:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 };
 
-//Lougout endpoint
-exports.logout = async (req, res) => {
-  console.log("Deslogeando usuario", req.headers.authorization?.split(" ")[1]);
-  try {
-    res.clearCookie("token");
-    res.status(200).json({ message: "Logout successful" });
-  } catch (error) {
-    console.error("Error logging out:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
+exports.logout = (req, res) => {
+  res.clearCookie("token");
+  res.status(200).json({ message: "Sesión cerrada exitosamente" });
 };
 
 exports.contact = async (req, res) => {
   try {
     const { name, email, message, phone, organization } = req.body;
 
-    // Formatear detalles
+    if (!name || !email || !message) {
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
+    }
+
     const details = `
       Nombre: ${name}
       Email: ${email}
-      Organización: ${organization}
-      Teléfono: ${phone}
+      Organización: ${organization || "No especificada"}
+      Teléfono: ${phone || "No especificado"}
       Mensaje: ${message}
     `;
 
-    const contact = await log.logAction(email, "contact", details, (SlackChannel = "#leads"));
+    await log.logAction(email, "contact", details, "#leads");
     res.status(201).json({ message: "Mensaje enviado con éxito" });
   } catch (error) {
-    console.error("Error al enviar el mensaje:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error en contact:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
   }
 };
