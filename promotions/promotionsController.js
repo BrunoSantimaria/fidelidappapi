@@ -1117,6 +1117,8 @@ exports.getDashboardMetrics = async (req, res) => {
   const timePeriod = req.body.timePeriod || 7;
   const sevenDaysAgo = moment().subtract(timePeriod, "days").startOf("day");
 
+  console.log("Getting dashboard metrics for email:",req.email);
+
   try {
     const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
     if (!account) {
