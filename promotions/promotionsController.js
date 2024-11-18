@@ -18,6 +18,7 @@ const PromotionRegistration = require("./PromotionRegistration.model");
 exports.createPromotion = async (req, res) => {
   try {
     const { email, systemType } = req.body;
+    console.log("CreatePromotion")
     console.log(req.body);
     // Obtener usuario y cuenta
     const user = await User.findOne({ email });
@@ -76,6 +77,7 @@ exports.createPromotion = async (req, res) => {
 exports.updatePromotion = async (req, res) => {
   const promotionId = req.params.pid;
   const { title, description, promotionType, promotionRecurrent, visitsRequired, benefitDescription, promotionDuration, conditions } = req.body;
+  console.log("UpdatePromotion")
   console.log(req.body);
 
   try {
@@ -115,8 +117,6 @@ exports.getPromotions = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    console.log("Usuario encontrado:", user);
-
     // Obtener promociones del usuario
     const promotions = await Promotion.find({ userID: user._id });
 
@@ -152,8 +152,8 @@ exports.getPromotions = async (req, res) => {
         }
       });
     });
-    console.log("Total de puntos:", totalPointsCount);
-    console.log("Total de visitas:", totalVisitsCount);
+    //console.log("Total de puntos:", totalPointsCount);
+    //console.log("Total de visitas:", totalVisitsCount);
 
     // Responder con las promociones y métricas actualizadas
     res.status(200).json({
@@ -343,6 +343,7 @@ exports.getPromotionById = async (req, res) => {
 
 exports.addClientToPromotion = async (req, res) => {
   const { promotionId, clientEmail, clientName, clientPhone } = req.body;
+  console.log("AddClientToPromotion");
   console.log(req.body);
 
   if (!promotionId || !clientEmail) {
@@ -782,7 +783,7 @@ exports.redeemVisits = async (req, res) => {
     }
 
     //if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
-      //return res.status(400).json({ error: "Promotion already added today" });
+    //return res.status(400).json({ error: "Promotion already added today" });
     //}
 
     // Update the visits data
@@ -1080,9 +1081,8 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${
-                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-              }" alt="FidelidApp Logo" height="100">
+              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+        }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1101,102 +1101,152 @@ exports.redeemPromotionPoints = async (req, res) => {
 };
 
 exports.getDashboardMetrics = async (req, res) => {
+  const timePeriod = req.body.timePeriod || 7;
+  const sevenDaysAgo = moment().subtract(timePeriod, "days").startOf("day");
+
   try {
-    // Fetch account using email
     const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // Retrieve all clients associated with this account
     const clients = await Client.find({ "addedAccounts.accountId": account._id });
+    const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
 
-    // Filter promotions based on account
-    const filteredClients = clients.map((client) => {
-      client.addedpromotions = client.addedpromotions.filter((promotion) =>
-        account.promotions.some((accPromotion) => accPromotion._id.toString() === promotion.promotion.toString())
-      );
-      return client;
-    });
-
+    let totalClients = 0;
     let totalVisits = 0;
+    let totalPoints = 0;
     let totalRedeemCount = 0;
-    let activeClientsCount = 0;
-    const uniquePromotions = new Set();
+    const totalPromotions = accountPromotionIds.length;
     const visitDataByClient = [];
-    const visitDataByPromotion = {};
-
-    const sevenDaysAgo = moment().subtract(7, "days").startOf("day");
+    const pointDataByClient = [];
     const dailyData = {};
 
-    // Initialize daily data structure for the past 7 days
-    for (let i = 0; i < 7; i++) {
+    // Prepare dailyData structure
+    for (let i = 0; i < timePeriod; i++) {
       const date = moment().subtract(i, "days").format("YYYY-MM-DD");
-      dailyData[date] = { registrations: 0, visits: 0, redeems: 0 };
+      dailyData[date] = { date: date, visits: 0, points: 0, registrations: 0 };
     }
 
-    filteredClients.forEach((client) => {
-      let clientVisits = 0;
-      let clientRedeems = 0;
-
-      // Register client registration date for the daily count
+    // Process each client
+    for (const client of clients) {
       const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format("YYYY-MM-DD");
-      if (registrationDate in dailyData) dailyData[registrationDate].registrations++;
 
-      client.addedpromotions.forEach((promotion) => {
-        // Filter and count recent visits
-        const recentVisits = promotion.visitDates.filter((date) => date >= sevenDaysAgo).map((date) => moment(date).format("YYYY-MM-DD"));
+      // Update dailyData for registrations
+      if (dailyData[registrationDate]) {
+        dailyData[registrationDate].registrations++;
+      }
 
-        recentVisits.forEach((date) => {
-          if (dailyData[date]) dailyData[date].visits++;
+      const pointsDaysAggregate = await Client.aggregate([
+        { $match: { _id: client._id } },
+        { $unwind: "$addedpromotions" },
+        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
+        { $unwind: "$addedpromotions.visitDates" },
+        {
+          $match: {
+            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
+            "addedpromotions.visitDates.pointsAdded": { $exists: true, $type: "number" },
+          },
+        },
+        {
+          $project: {
+            email: 1,
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+            pointsAdded: "$addedpromotions.visitDates.pointsAdded",
+          },
+        },
+      ]);
+
+      const visitsDaysAggregate = await Client.aggregate([
+        { $match: { _id: client._id } },
+        { $unwind: "$addedpromotions" },
+        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
+        { $unwind: "$addedpromotions.visitDates" },
+        {
+          $match: {
+            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
+          },
+        },
+        {
+          $project: {
+            email: 1,
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+          },
+        },
+      ]);
+
+      // Update total points
+      totalPoints += pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
+
+      // Update total visits
+      totalVisits += visitsDaysAggregate.length;
+
+      // Group data by client
+      const clientVisits = visitsDaysAggregate.length;
+      const clientPoints = pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
+
+      // Sum up the redeemCount for all promotions
+      const clientRedeemCount = client.addedpromotions.reduce((total, promo) => {
+        return total + (promo.redeemCount || 0); // Add redeemCount if it exists, otherwise add 0
+      }, 0);
+
+      totalRedeemCount += clientRedeemCount;
+
+      if (clientVisits > 0 || clientPoints > 0) {
+        visitDataByClient.push({
+          client: client.email,
+          visits: clientVisits,
+          points: clientPoints,
+          redeemCount: clientRedeemCount,
+          registrationDate,
         });
 
-        const recentRedeems = promotion.redeemCount;
-        totalVisits += recentVisits.length;
-        totalRedeemCount += recentRedeems;
-        uniquePromotions.add(promotion.promotion.toString());
+        pointDataByClient.push({
+          client: client.email,
+          points: clientPoints,
+          redeemCount: clientRedeemCount,
+          registrationDate,
+        });
+      }
 
-        clientVisits += recentVisits.length;
-        clientRedeems += recentRedeems;
-
-        // Track visits and redemptions by promotion for table
-        if (!visitDataByPromotion[promotion.promotion]) {
-          visitDataByPromotion[promotion.promotion] = { visits: 0, redeems: 0 };
+      // Update dailyData for visits and points
+      visitsDaysAggregate.forEach((entry) => {
+        if (dailyData[entry.date]) {
+          dailyData[entry.date].visits++;
         }
-        visitDataByPromotion[promotion.promotion].visits += recentVisits.length;
-        visitDataByPromotion[promotion.promotion].redeems += recentRedeems;
       });
 
-      if (clientVisits > 0) activeClientsCount++;
-      visitDataByClient.push({ client: client.email, visits: clientVisits, redeems: clientRedeems });
-    });
+      pointsDaysAggregate.forEach((entry) => {
+        if (dailyData[entry.date]) {
+          dailyData[entry.date].points += entry.pointsAdded;
+        }
+      });
+    }
 
-    const totalClients = filteredClients.length;
-    const promotionsAvailable = uniquePromotions.size;
-    const visitFrequency = activeClientsCount > 0 ? parseFloat((totalVisits / activeClientsCount).toFixed(2)) : 0;
-    const redemptionFrequency = activeClientsCount > 0 ? parseFloat((totalRedeemCount / activeClientsCount).toFixed(2)) : 0;
+    // Total clients updated based on registration within the period
+    totalClients = clients.filter((client) => {
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp());
+      return registrationDate.isSameOrAfter(sevenDaysAgo);
+    }).length;
 
-    //Ordenar data
+    // Format and sort data
+    const orderedDailyData = Object.entries(dailyData)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([date, data]) => ({ date, ...data }));
 
-    const orderedDailyData = await Object.fromEntries(
-      Object.entries(dailyData)
-        //Sort the dara in asciending order
-        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-    );
-
-    //Sort the data in descenging order visitDataByClient,visitDataByPromotion,
-
+    // Sort clients by total visits
     visitDataByClient.sort((a, b) => b.visits - a.visits);
+    pointDataByClient.sort((a, b) => b.points - a.points);
 
+    // Return the results
     res.status(200).json({
       totalClients,
       totalVisits,
-      promotionsRedeemed: totalRedeemCount,
-      promotionsAvailable,
-      visitFrequency,
-      redemptionFrequency,
+      totalPoints,
+      totalRedeemCount, // Update this if you track redeem counts
+      totalPromotions,
       visitDataByClient,
-      visitDataByPromotion,
+      pointDataByClient,
       dailyData: orderedDailyData,
     });
   } catch (error) {
@@ -1204,6 +1254,9 @@ exports.getDashboardMetrics = async (req, res) => {
     res.status(500).json({ message: "Error retrieving dashboard metrics" });
   }
 };
+
+
+
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
@@ -1303,6 +1356,7 @@ ${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> 
 };
 
 const cron = require("node-cron");
+const { time } = require("console");
 
 cron.schedule("0 0 * * *", async () => {
   try {

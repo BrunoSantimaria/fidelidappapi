@@ -1,13 +1,14 @@
 const Client = require('../promotions/client.model');
 const Promotion = require('../promotions/promotions.model');
 const { sendMarketingEmail } = require('../utils/emailSender'); // Ejemplo de servicio de correo
+const mongoose = require("mongoose");
+
 
 // Handler para clientes inactivos
 async function handleClientInactivity(rule) {
-    const { account, actionDetails, conditionValue } = rule;
+    const { account, conditionValue, subject,message } = rule;
     console.log('Executing client inactivity rule:', rule.name);
-
-    const emailText = `${actionDetails.message} <br> <br> <br> <img src="${account.logo}" height="100"></img>`;
+    const emailText = `${message} <br> <br> <br> <img src="${account.logo}" height="100"></img>`;
 
     // Calculate the inactivity threshold date
     const inactivityThreshold = new Date(Date.now() - conditionValue * 24 * 60 * 60 * 1000);
@@ -22,51 +23,66 @@ async function handleClientInactivity(rule) {
         console.log("No clients found for this account.");
         return;
     }
+    const accountPromotionIds = account.promotions.map(id => new mongoose.Types.ObjectId(id)); // Convertir a ObjectId
 
     for (const client of clients) {
-        console.log(`Client: ${client.email}`);
 
-        // Inspect added promotions
-        client.addedpromotions.forEach(promo => {
-            console.log(`Promotion ID: ${promo.promotion}, Visit Dates: ${JSON.stringify(promo.visitDates, null, 2)}`);
-        });
+        const visitDaysAggregate = await Client.aggregate([
+            { $match: { _id: client._id } }, // Filtrar por el cliente actual
+            { $unwind: "$addedpromotions" },
+            { 
+                $match: {
+                    "addedpromotions.promotion": { $in: accountPromotionIds } // Validar las promociones
+                }
+            },
+            { $unwind: "$addedpromotions.visitDates" },
+            {
+                $match: {
+                    "addedpromotions.visitDates.date": { $exists: true, $type: "date" }
+                },
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" }
+                    }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
 
-        // Gather all visit dates
-        const visitDates = client.addedpromotions.flatMap(promo => {
-            return promo.visitDates && promo.visitDates.length > 0
-                ? promo.visitDates.map(v => v.date)
-                : [];
-        });
+        const fechas = visitDaysAggregate.map(day => day._id);
 
-        console.log(`${client.email} Visit Dates: ${visitDates}`);
+        // Encontrar la fecha más reciente
+        const lastVisitDay = fechas[fechas.length - 1]; // Ya está en formato YYYY-MM-DD
+        const thresholdDay = inactivityThreshold.toISOString().split("T")[0];
 
-        if (visitDates.length === 0) {
-            console.log(`${client.email} is inactive (no visits).`);
-            continue;
-        }
+        console.log(client.email)
+        console.log(fechas)
+        console.log("Last visit day:", lastVisitDay);
+        console.log("Threshold day:", thresholdDay);
 
-        const lastVisitDate = new Date(Math.max(...visitDates.map(date => new Date(date).getTime())));
-        if (lastVisitDate <= inactivityThreshold) {
+        // Verificar si la última visita coincide con el umbral de inactividad
+        if (lastVisitDay === thresholdDay) {
             try {
-                await sendMarketingEmail({
+                sendMarketingEmail({
                     to: client.email,
-                    subject: actionDetails.subject,
-                    ...(actionDetails.header ? { header: actionDetails.header } : {}),
-                    text: emailText
+                    subject: subject,
+                    text: emailText,
                 });
-                console.log(`Automated Email sent to ${client.email}`);
+
+                console.log("Automated handleClientInactivity Email sent to " + client.email);
+
             } catch (error) {
-                console.error(`Error sending email to ${client.email}:`, error);
+                console.error("Error sending email to" + client.email + error);
             }
         }
     }
 }
 
-
-
-// Handler para promociones por expirar
+// Handler para promociones por expirar REVISAR POST CAMBIO DE VISIT DATES ?
 async function handlePromotionExpiration(rule) {
-    const { account, actionDetails, conditionValue } = rule;
+    const { account, conditionValue, subject,message } = rule;
     console.log('Executing promotion expiration rule:', rule.name);
 
     // Calculate the expiration threshold date
@@ -100,12 +116,11 @@ async function handlePromotionExpiration(rule) {
             if (promoEndDay === thresholdDay) {
                 try {
                     const promotionName = await Promotion.findById(promo.promotion);
-                    emailText = `${actionDetails.message} <br> <br> Nombre de la promoción: ${promotionName.title} <br> <br> Fecha de Expiración: ${promoEndDay} <br> <br> <img src="${account.logo}" height="100"></img>`
+                    emailText = `${message} <br> <br> Nombre de la promoción: ${promotionName.title} <br> <br> Fecha de Expiración: ${promoEndDay} <br> <br> <img src="${account.logo}" height="100"></img>`
 
                     sendMarketingEmail({
                         to: client.email,
-                        subject: actionDetails.subject,
-                        ...(actionDetails.header ? { header: actionDetails.header } : {}),
+                        subject: subject,
                         text: emailText
                     });
 

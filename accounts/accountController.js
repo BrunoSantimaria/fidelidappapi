@@ -244,8 +244,10 @@ const createVerifiedSenderForSubuser = async (clientData) => {
 };
 const updateAccount = async (req, res) => {
   try {
-    const { accountId, settings } = req.body;
+    console.log("updateAccount");
     console.log(req.body);
+    const { accountId, settings } = req.body;
+
 
     if (!accountId) {
       return res.status(400).json({ error: "Account ID is required." });

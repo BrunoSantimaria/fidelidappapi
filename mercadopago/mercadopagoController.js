@@ -183,7 +183,7 @@ const activateProSubscription = async (accountId, expirationDate) => {
 
 const checkSubscription = async (req, res) => {
   const { accountId } = req.params;
-  console.log(accountId);
+  console.log("checkSubscription",accountId);
 
   try {
     const objectId = new mongoose.Types.ObjectId(accountId);

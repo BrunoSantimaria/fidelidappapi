@@ -5,28 +5,41 @@ const automationRuleSchema = new mongoose.Schema({
   account: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Account',
-    required: true, // La regla debe estar vinculada a una cuenta
+    required: true,
   },
   name: {
     type: String,
-    required: true, // Un nombre para la regla, por ejemplo "Recordatorio de promoción"
+    required: true,
   },
   condition: {
     type: String,
-    required: true, // La condición para activar la regla, por ejemplo "client inactivity", "promotion expiration"
-    enum: ['clientInactivity', 'promotionExpiration', 'registrationAnniversary','customDate', 'clientBirthday', 'accountPlanExpiration', 'totalVisitsAchieved'], // Ejemplo de condiciones
+    required: true,
+    enum: [
+      'clientInactivity',
+      'promotionExpiration',
+      'registrationAnniversary',
+      'customDate',
+      'clientBirthday',
+      'accountPlanExpiration',
+      'totalVisitsAchieved',
+      'newConsumer',
+    ],
   },
   conditionValue: {
     type: Number,
-    required: true, // Por ejemplo, cuántos días después de la inactividad o antes de la expiración
-  },
-  actionDetails: {
-    type: Object, // Aquí puedes almacenar detalles específicos de la acción, como el mensaje o descuento
     required: true,
+  },
+  subject:
+  {
+    type: String, required: true
+  },
+  message:
+  {
+    type: String, required: true
   },
   isActive: {
     type: Boolean,
-    default: true, // Si la regla está activa o no
+    default: true,
   },
   createdAt: {
     type: Date,
@@ -38,7 +51,7 @@ const automationRuleSchema = new mongoose.Schema({
   },
 });
 
-// Middleware para actualizar el campo updatedAt automáticamente
+// Middleware to auto-update `updatedAt`
 automationRuleSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();

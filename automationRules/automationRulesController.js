@@ -11,8 +11,6 @@ exports.fetchAccountRules = async (req, res) => {
     }
 
     const rules = await AutomationRule.find({ account: account._id });
-
-    console.log("Automation Rules:", rules);
     res.status(200).json(rules);
   } catch (error) {
     console.error("Error fetching automation rules:", error);
@@ -23,14 +21,12 @@ exports.fetchAccountRules = async (req, res) => {
 // POST: Create a new automation rule
 exports.createRule = async (req, res) => {
     const account = await Account.findOne({ userEmails: req.email });
-    const { name, condition, conditionValue, actionDetails, isActive = true } = req.body.rule;
+    const { name, condition, conditionValue, subject, message, isActive = true } = req.body.rule;
     
     console.log(req.body)
-    //console.log(name, condition, conditionValue, actionDetails, isActive);
-
 
   // Validate required fields
-  if (!account || !name || !condition || !conditionValue || !actionDetails) {
+  if (!account || !name || !condition || !conditionValue || !subject || !message) {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
@@ -39,7 +35,8 @@ exports.createRule = async (req, res) => {
     name,
     condition,
     conditionValue,
-    actionDetails,
+    subject,
+    message,
     isActive,
   });
 
