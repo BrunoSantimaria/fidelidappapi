@@ -782,13 +782,26 @@ exports.redeemVisits = async (req, res) => {
       return res.status(400).json({ error: "Promotion already expired" });
     }
 
-    //if (promotion.visitDates.some((date) => date.toDateString() === new Date().toDateString())) {
-    //return res.status(400).json({ error: "Promotion already added today" });
-    //}
+    // Validación corregida para el formato correcto de visitDates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    // Update the visits data
+    const hasVisitedToday = promotion.visitDates.some((visit) => {
+      const visitDate = new Date(visit.date);
+      visitDate.setHours(0, 0, 0, 0);
+      return visitDate.getTime() === today.getTime();
+    });
+
+    if (hasVisitedToday) {
+      return res.status(400).json({ error: "Ya has registrado una visita hoy" });
+    }
+
+    // Actualizar con el formato correcto según el modelo
     promotion.actualVisits += 1;
-    promotion.visitDates.push({ date: new Date() });
+    promotion.visitDates.push({
+      date: new Date(),
+      pointsAdded: promotion.systemType === "points" ? req.body.points || 0 : undefined,
+    });
 
     console.log("Promotion:", promotion);
 
@@ -811,7 +824,7 @@ exports.redeemVisits = async (req, res) => {
     }
   } catch (error) {
     console.error("Error redeeming visits:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 
