@@ -1305,6 +1305,8 @@ exports.getDashboardMetrics = async (req, res) => {
       return res.status(404).json({ message: "Account not found" });
     }
 
+    console.log("Creating Report for Account:", account._id);
+
     const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
     console.log("Account Promotion IDs:", accountPromotionIds);
 
@@ -1317,7 +1319,6 @@ exports.getDashboardMetrics = async (req, res) => {
 
     console.log("Daily Metrics:", dailyMetrics);
     console.log("Global Metrics:", globalMetrics);
-    console.log("Customer Metrics:", customerMetrics);
 
     // Initialize variables for response
     const dailyData = {};
