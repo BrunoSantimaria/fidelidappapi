@@ -36,6 +36,7 @@ const createAccount = async (userId, email) => {
       whatsapp: "",
       website: "",
     },
+    firstEmailMarketingCompleted: false,
   });
   await account.save();
   await sendQrCode(account);
@@ -73,24 +74,31 @@ exports.signUp = async (req, res) => {
       return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
     }
 
+    // Verificar si el usuario ya existe
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: ERROR_MESSAGES.EMAIL_EXISTS });
     }
 
+    // Crear nuevo usuario
     const user = new User({ name, email, password });
     await user.save();
 
+    // Verificar si ya existe una cuenta con este email
     const existingAccount = await Account.findOne({ userEmails: email });
+
     if (!existingAccount) {
+      // Si no existe cuenta, crear una nueva
       const account = await createAccount(user._id, email);
       log.logAction(email, "signup", "Usuario y cuenta creados");
+
       return res.status(201).json({
         user: { email: user.email, name: user.name },
         account,
       });
     }
 
+    // Si existe una cuenta, solo agregar el usuario
     log.logAction(email, "signup", "Usuario creado y agregado a cuenta existente");
     return res.status(201).json({
       user: { email: user.email, name: user.name },

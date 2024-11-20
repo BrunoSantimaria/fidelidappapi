@@ -82,6 +82,7 @@ const accountSchema = new mongoose.Schema({
     enum: ["free", "pro", "premium", "admin"],
   },
   planExpiration: { type: Date },
+  firstEmailMarketingCompleted: { type: Boolean, default: false },
   isActive: { type: Boolean, default: false },
   industry: { type: String },
   activeQr: { type: Boolean, default: true },
@@ -102,7 +103,7 @@ const accountSchema = new mongoose.Schema({
   activePayer: { type: Boolean, default: false },
 });
 
-// Método para registrar un email enviado
+// Método para registrar un  enviado
 accountSchema.methods.logEmailSent = async function () {
   try {
     this.emailsSentCount += 1;

@@ -18,7 +18,7 @@ const PromotionRegistration = require("./PromotionRegistration.model");
 exports.createPromotion = async (req, res) => {
   try {
     const { email, systemType } = req.body;
-    console.log("CreatePromotion")
+    console.log("CreatePromotion");
     console.log(req.body);
     // Obtener usuario y cuenta
     const user = await User.findOne({ email });
@@ -77,7 +77,7 @@ exports.createPromotion = async (req, res) => {
 exports.updatePromotion = async (req, res) => {
   const promotionId = req.params.pid;
   const { title, description, promotionType, promotionRecurrent, visitsRequired, benefitDescription, promotionDuration, conditions } = req.body;
-  console.log("UpdatePromotion")
+  console.log("UpdatePromotion");
   console.log(req.body);
 
   try {
@@ -258,21 +258,44 @@ exports.getPromotionById = async (req, res) => {
 
     // Agregar estadísticas basadas en el systemType
     if (promotion.systemType === "visits") {
-      // Agregar estadísticas de visitas por día
       const visitDatesAggregate = await Client.aggregate([
         { $match: { "addedpromotions.promotion": promotion._id } },
         { $unwind: "$addedpromotions" },
         { $match: { "addedpromotions.promotion": promotion._id } },
         { $unwind: "$addedpromotions.visitDates" },
         {
+          $addFields: {
+            normalizedDate: {
+              $switch: {
+                branches: [
+                  // Caso 1: Cuando visitDates es directamente una fecha
+                  {
+                    case: { $eq: [{ $type: "$addedpromotions.visitDates" }, "date"] },
+                    then: "$addedpromotions.visitDates",
+                  },
+                  // Caso 2: Cuando visitDates tiene una propiedad date
+                  {
+                    case: { $eq: [{ $type: "$addedpromotions.visitDates.date" }, "date"] },
+                    then: "$addedpromotions.visitDates.date",
+                  },
+                ],
+                default: null,
+              },
+            },
+          },
+        },
+        {
           $match: {
-            "addedpromotions.visitDates": { $type: "date" }, // Solo fechas válidas para visitas
+            normalizedDate: { $ne: null },
           },
         },
         {
           $group: {
             _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates" },
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$normalizedDate",
+              },
             },
             visits: { $sum: 1 },
           },
@@ -285,23 +308,35 @@ exports.getPromotionById = async (req, res) => {
         visits: entry.visits,
       }));
     } else if (promotion.systemType === "points") {
-      // Agregar estadísticas de puntos por día
       const pointsPerDayAggregate = await Client.aggregate([
         { $match: { "addedpromotions.promotion": promotion._id } },
         { $unwind: "$addedpromotions" },
         { $match: { "addedpromotions.promotion": promotion._id } },
         { $unwind: "$addedpromotions.visitDates" },
         {
-          $match: {
-            "addedpromotions.visitDates.date": { $exists: true, $type: "date" }, // Asegurar que date existe y es Date
+          $project: {
+            date: {
+              $cond: {
+                if: { $eq: [{ $type: "$addedpromotions.visitDates" }, "date"] },
+                then: "$addedpromotions.visitDates",
+                else: "$addedpromotions.visitDates.date",
+              },
+            },
+            pointsAdded: {
+              $cond: {
+                if: { $eq: [{ $type: "$addedpromotions.visitDates" }, "date"] },
+                then: 1, // valor por defecto para registros antiguos
+                else: "$addedpromotions.visitDates.pointsAdded",
+              },
+            },
           },
         },
         {
           $group: {
             _id: {
-              $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" },
+              $dateToString: { format: "%Y-%m-%d", date: "$date" },
             },
-            points: { $sum: "$addedpromotions.visitDates.pointsAdded" },
+            points: { $sum: "$pointsAdded" },
           },
         },
         { $sort: { _id: 1 } },
@@ -728,61 +763,26 @@ exports.redeemPoints = async (req, res) => {
 };
 
 exports.redeemVisits = async (req, res) => {
-  const { clientEmail, promotionId, accountQr } = req.body;
-
-  console.log(clientEmail, promotionId, accountQr);
-
-  if (!accountQr) {
-    return res.status(400).json({ error: "Missing promotion ID or client email or AccountQR" });
-  }
-
-  const existingPromotiondata = await Promotion.findById(promotionId);
-
-  if (!existingPromotiondata) {
-    return res.status(404).json({ error: "Promotion not found" });
-  }
-
-  const account = await Account.findOne({ owner: existingPromotiondata.userID._id });
-
-  if (!account) {
-    return res.status(404).json({ error: "Associated account not found" });
-  }
-  console.log(account.accountQr, accountQr);
-
-  if (account.accountQr != accountQr) {
-    return res.status(401).json({ error: "Invalid daily key" });
-  }
-
-  let client = await Client.findOne({ email: clientEmail });
-  if (!client) {
-    return res.status(404).json({ error: "Client not found" });
-  }
+  const { promotionId, clientEmail } = req.body;
 
   try {
-    const promotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
+    const existingPromotiondata = await Promotion.findById(promotionId);
+    if (!existingPromotiondata) {
+      return res.status(404).json({ error: "Promotion not found" });
+    }
 
-    console.log("Client Card Promotion:", promotion);
+    const client = await Client.findOne({ email: clientEmail });
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    const promotion = client.addedpromotions.find((p) => p.promotion.toString() === promotionId);
 
     if (!promotion) {
-      return res.status(404).json({ error: "Promotion not found for this client" });
+      return res.status(404).json({ error: "Client does not have this promotion" });
     }
 
-    if (promotion.status === "Completed") {
-      return res.status(400).json({ error: "Promotion already completed" });
-    }
-
-    if (promotion.status === "Redeemed" || promotion.status === "Expired") {
-      return res.status(400).json({ error: "Promotion already " + promotion.status });
-    }
-
-    // Check if date is expired
-    if (promotion.endDate < new Date()) {
-      promotion.status = "Expired";
-      await client.save();
-      return res.status(400).json({ error: "Promotion already expired" });
-    }
-
-    // Validación corregida para el formato correcto de visitDates
+    // Verificar si ya visitó hoy
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -796,35 +796,40 @@ exports.redeemVisits = async (req, res) => {
       return res.status(400).json({ error: "Ya has registrado una visita hoy" });
     }
 
-    // Actualizar con el formato correcto según el modelo
+    // Actualizar los datos de visita
     promotion.actualVisits += 1;
+    // Agregar la nueva visita con la estructura correcta
     promotion.visitDates.push({
       date: new Date(),
-      pointsAdded: promotion.systemType === "points" ? req.body.points || 0 : undefined,
+      pointsAdded: 0, // Como es sistema de visitas, ponemos 0 o podemos omitir este campo
     });
-
-    console.log("Promotion:", promotion);
 
     if (promotion.actualVisits >= existingPromotiondata.visitsRequired) {
       promotion.status = "Pending";
 
       const qrLink = `${process.env.BASE_URL}/redeem-promotion/${client._id}/${promotionId}`;
-
       const qrCodeBuffer = await QRCode.toBuffer(qrLink);
 
       await sendCompletedPromotionMail(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title, qrCodeBuffer);
 
       await client.save();
       log.logAction(clientEmail, "redeemVisits", promotion.title);
-      res.status(200).json({ message: "Promotion completed, QR generated", qrCode: qrCodeBuffer.toString("base64"), promotion });
+      res.status(200).json({
+        message: "Promotion completed, QR generated",
+        qrCode: qrCodeBuffer.toString("base64"),
+        promotion,
+      });
     } else {
       await client.save();
       log.logAction(clientEmail, "redeemVisits", promotion.title);
-      res.status(200).json({ message: "Visits redeemed successfully", client });
+      res.status(200).json({
+        message: "Visits redeemed successfully",
+        client,
+      });
     }
   } catch (error) {
     console.error("Error redeeming visits:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -1083,7 +1088,7 @@ exports.redeemPromotionPoints = async (req, res) => {
         <body>
           <div class="container">
             <div class="content">
-              <h1>¡Hola ${client.name}!</h1>
+              <h1>Hola ${client.name}!</h1>
               <h2>Has canjeado la recompensa "${reward.description}" por ${reward.points} puntos.</h2>
               <p>¡Gracias por tu lealtad!</p>
               <p><strong>Puntos restantes en tu cuenta:</strong> ${remainingPoints}</p>
@@ -1094,8 +1099,9 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-        }" alt="FidelidApp Logo" height="100">
+              <img src="${
+                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+              }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1113,6 +1119,186 @@ exports.redeemPromotionPoints = async (req, res) => {
   }
 };
 
+<<<<<<< Updated upstream
+=======
+exports.getDashboardMetrics = async (req, res) => {
+  const timePeriod = req.body.timePeriod || 7;
+
+  console.log("⭐ Iniciando getDashboardMetrics");
+  console.log("Período de tiempo solicitado:", timePeriod, "días");
+
+  const sevenDaysAgo = moment().subtract(timePeriod, "days").startOf("day");
+
+  console.log("Getting dashboard metrics for email:", req.email);
+
+  try {
+    const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
+    console.log("📊 Cuenta encontrada:", {
+      email: req.email,
+      numPromotions: account?.promotions?.length || 0,
+    });
+
+    const clients = await Client.find({ "addedAccounts.accountId": account._id });
+    console.log("👥 Número de clientes encontrados:", clients.length);
+
+    const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
+
+    let totalClients = 0;
+    let totalVisits = 0;
+    let totalPoints = 0;
+    let totalRedeemCount = 0;
+    const totalPromotions = accountPromotionIds.length;
+    const visitDataByClient = [];
+    const pointDataByClient = [];
+    const dailyData = {};
+
+    // Prepare dailyData structure
+    for (let i = 0; i < timePeriod; i++) {
+      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
+      dailyData[date] = { date: date, visits: 0, points: 0, registrations: 0 };
+    }
+
+    // Process each client
+    for (const client of clients) {
+      console.log("\n🔄 Procesando cliente:", client.email);
+
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format("YYYY-MM-DD");
+
+      // Update dailyData for registrations
+      if (dailyData[registrationDate]) {
+        dailyData[registrationDate].registrations++;
+      }
+
+      const pointsDaysAggregate = await Client.aggregate([
+        { $match: { _id: client._id } },
+        { $unwind: "$addedpromotions" },
+        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
+        { $unwind: "$addedpromotions.visitDates" },
+        {
+          $match: {
+            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
+            "addedpromotions.visitDates.pointsAdded": { $exists: true, $type: "number" },
+          },
+        },
+        {
+          $project: {
+            email: 1,
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+            pointsAdded: "$addedpromotions.visitDates.pointsAdded",
+          },
+        },
+      ]);
+
+      console.log("📈 Agregación de puntos para cliente:", {
+        email: client.email,
+        numRegistros: pointsDaysAggregate.length,
+        puntosTotal: pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0),
+      });
+
+      const visitsDaysAggregate = await Client.aggregate([
+        { $match: { _id: client._id } },
+        { $unwind: "$addedpromotions" },
+        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
+        { $unwind: "$addedpromotions.visitDates" },
+        {
+          $match: {
+            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
+          },
+        },
+        {
+          $project: {
+            email: 1,
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+          },
+        },
+      ]);
+
+      console.log("🏃 Agregación de visitas para cliente:", {
+        email: client.email,
+        numVisitas: visitsDaysAggregate.length,
+      });
+
+      // Update total points
+      totalPoints += pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
+
+      // Update total visits
+      totalVisits += visitsDaysAggregate.length;
+
+      // Group data by client
+      const clientVisits = visitsDaysAggregate.length;
+      const clientPoints = pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
+
+      // Sum up the redeemCount for all promotions
+      const clientRedeemCount = client.addedpromotions.reduce((total, promo) => {
+        return total + (promo.redeemCount || 0); // Add redeemCount if it exists, otherwise add 0
+      }, 0);
+
+      totalRedeemCount += clientRedeemCount;
+
+      if (clientVisits > 0 || clientPoints > 0) {
+        visitDataByClient.push({
+          client: client.email,
+          visits: clientVisits,
+          points: clientPoints,
+          redeemCount: clientRedeemCount,
+          registrationDate,
+        });
+
+        pointDataByClient.push({
+          client: client.email,
+          points: clientPoints,
+          redeemCount: clientRedeemCount,
+          registrationDate,
+        });
+      }
+
+      // Update dailyData for visits and points
+      visitsDaysAggregate.forEach((entry) => {
+        if (dailyData[entry.date]) {
+          dailyData[entry.date].visits++;
+        }
+      });
+
+      pointsDaysAggregate.forEach((entry) => {
+        if (dailyData[entry.date]) {
+          dailyData[entry.date].points += entry.pointsAdded;
+        }
+      });
+    }
+
+    // Total clients updated based on registration within the period
+    totalClients = clients.filter((client) => {
+      const registrationDate = moment(client.createdAt || client._id.getTimestamp());
+      return registrationDate.isSameOrAfter(sevenDaysAgo);
+    }).length;
+
+    // Format and sort data
+    const orderedDailyData = Object.entries(dailyData)
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([date, data]) => ({ date, ...data }));
+
+    // Sort clients by total visits
+    visitDataByClient.sort((a, b) => b.visits - a.visits);
+    pointDataByClient.sort((a, b) => b.points - a.points);
+
+    // Return the results
+    res.status(200).json({
+      totalClients,
+      totalVisits,
+      totalPoints,
+      totalRedeemCount, // Update this if you track redeem counts
+      totalPromotions,
+      visitDataByClient,
+      pointDataByClient,
+      dailyData: orderedDailyData,
+    });
+  } catch (error) {
+    console.error("❌ Error en getDashboardMetrics:", error);
+    res.status(500).json({ message: "Error retrieving dashboard metrics" });
+  }
+};
+
+>>>>>>> Stashed changes
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
@@ -1293,6 +1479,7 @@ exports.getPromotionRegistrations = async (req, res) => {
   }
 };
 
+<<<<<<< Updated upstream
 
 exports.getDashboardMetrics = async (req, res) => {
   const timePeriod = req.body.timePeriod || 7;
@@ -1487,3 +1674,121 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
   ]);
 };
 
+=======
+exports.getWeeklyVisits = async (req, res) => {
+  try {
+    console.log("1. Iniciando getWeeklyVisits");
+    console.log("Email recibido:", req.email);
+
+    const email = req.email;
+    const user = await User.findOne({ email });
+    console.log("2. Usuario encontrado:", user ? "Sí" : "No");
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Obtener la fecha de hace una semana
+    const oneWeekAgo = moment().subtract(7, "days").startOf("day").toDate();
+    console.log("3. Fecha hace una semana:", oneWeekAgo);
+
+    // Obtener todas las promociones del usuario
+    const promotions = await Promotion.find({ userID: user._id });
+    console.log("4. Número de promociones encontradas:", promotions.length);
+    const promotionIds = promotions.map((promotion) => promotion._id);
+    console.log("5. IDs de promociones:", promotionIds);
+
+    // Buscar clientes con estas promociones
+    const clients = await Client.aggregate([
+      {
+        $match: {
+          "addedpromotions.promotion": { $in: promotionIds },
+        },
+      },
+      {
+        $unwind: "$addedpromotions",
+      },
+      {
+        $match: {
+          "addedpromotions.promotion": { $in: promotionIds },
+        },
+      },
+      {
+        $unwind: "$addedpromotions.visitDates",
+      },
+      {
+        $match: {
+          "addedpromotions.visitDates.date": {
+            $gte: oneWeekAgo,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+          },
+          totalVisits: { $sum: 1 },
+          uniqueClients: { $addToSet: "$_id" },
+        },
+      },
+      {
+        $sort: { "_id.date": 1 },
+      },
+    ]);
+
+    console.log("6. Resultados de la agregación:", clients);
+
+    // Preparar el objeto de respuesta
+    const weeklyStats = {
+      totalVisits: 0,
+      uniqueClients: new Set(),
+      dailyVisits: {},
+    };
+
+    // Inicializar los últimos 7 días con 0 visitas
+    for (let i = 0; i < 7; i++) {
+      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
+      weeklyStats.dailyVisits[date] = {
+        visits: 0,
+        uniqueClients: 0,
+      };
+    }
+
+    console.log("7. Estructura inicial de weeklyStats:", weeklyStats);
+
+    // Llenar con los datos reales
+    clients.forEach((day) => {
+      const date = day._id.date;
+      if (weeklyStats.dailyVisits[date]) {
+        weeklyStats.dailyVisits[date] = {
+          visits: day.totalVisits,
+          uniqueClients: day.uniqueClients.length,
+        };
+        weeklyStats.totalVisits += day.totalVisits;
+        day.uniqueClients.forEach((clientId) => weeklyStats.uniqueClients.add(clientId.toString()));
+      }
+    });
+
+    console.log("8. WeeklyStats después de procesar:", weeklyStats);
+
+    // Convertir el resultado final
+    const response = {
+      totalVisits: weeklyStats.totalVisits,
+      uniqueClients: weeklyStats.uniqueClients.size,
+      dailyStats: Object.entries(weeklyStats.dailyVisits).map(([date, stats]) => ({
+        date,
+        visits: stats.visits,
+        uniqueClients: stats.uniqueClients,
+      })),
+    };
+
+    console.log("9. Respuesta final:", response);
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error en getWeeklyVisits:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+>>>>>>> Stashed changes

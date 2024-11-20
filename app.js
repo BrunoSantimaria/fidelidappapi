@@ -12,6 +12,7 @@ require("./automationRules/automationsCronJob");
 require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
+
 dotenv.config();
 
 // Conexión a la base de datos
@@ -76,6 +77,8 @@ const automationRulesRoutes = require("./automationRules/automationRulesRoutes")
 const mercadoPagoRoutes = require("./mercadopago/mercadopagoRoutes");
 const leadsemailparserRoutes = require("./utils/leadsemailparser");
 const templateRoutes = require("./template/templateRoutes");
+const eventRoutes = require("./events/eventsRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -87,6 +90,8 @@ app.use("/api/automation-rules", automationRulesRoutes);
 app.use("/api/mercadopago", mercadoPagoRoutes);
 app.use("/api/leadsemailparser", leadsemailparserRoutes);
 app.use("/api/template/", templateRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/notifications", notificationRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
