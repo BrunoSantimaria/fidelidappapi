@@ -1106,181 +1106,194 @@ exports.redeemPromotionPoints = async (req, res) => {
 
 exports.getDashboardMetrics = async (req, res) => {
   const timePeriod = req.body.timePeriod || 7;
-
-  console.log("⭐ Iniciando getDashboardMetrics");
-  console.log("Período de tiempo solicitado:", timePeriod, "días");
-
-  const sevenDaysAgo = moment().subtract(timePeriod, "days").startOf("day");
-
-  console.log("Getting dashboard metrics for email:", req.email);
+  const startDate = moment().subtract(timePeriod, "days").startOf("day").toDate();
 
   try {
     const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
-    console.log("📊 Cuenta encontrada:", {
-      email: req.email,
-      numPromotions: account?.promotions?.length || 0,
-    });
 
-    const clients = await Client.find({ "addedAccounts.accountId": account._id });
-    console.log("👥 Número de clientes encontrados:", clients.length);
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    console.log("Creating Report for Account:", account._id);
 
     const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
+    console.log("Account Promotion IDs:", accountPromotionIds);
 
-    let totalClients = 0;
+    // Execute the three queries
+    const [dailyMetrics, globalMetrics, customerMetrics] = await Promise.all([
+      getDailyMetrics(account._id, accountPromotionIds, startDate),
+      getGlobalMetrics(account._id),
+      getCustomerMetrics(account._id, accountPromotionIds),
+    ]);
+
+    console.log("Daily Metrics:", dailyMetrics);
+    console.log("Global Metrics:", globalMetrics);
+
+    // Initialize variables for response
+    const dailyData = {};
+    const visitDataByClient = [];
+    const pointDataByClient = [];
     let totalVisits = 0;
     let totalPoints = 0;
     let totalRedeemCount = 0;
-    const totalPromotions = accountPromotionIds.length;
-    const visitDataByClient = [];
-    const pointDataByClient = [];
-    const dailyData = {};
 
     // Prepare dailyData structure
     for (let i = 0; i < timePeriod; i++) {
       const date = moment().subtract(i, "days").format("YYYY-MM-DD");
-      dailyData[date] = { date: date, visits: 0, points: 0, registrations: 0 };
+      dailyData[date] = { date, visits: 0, points: 0, registrations: 0 };
     }
 
-    // Process each client
-    for (const client of clients) {
-      console.log("\n🔄 Procesando cliente:", client.email);
-
-      const registrationDate = moment(client.createdAt || client._id.getTimestamp()).format("YYYY-MM-DD");
-
-      // Update dailyData for registrations
-      if (dailyData[registrationDate]) {
-        dailyData[registrationDate].registrations++;
+    // Populate dailyData with global metrics
+    globalMetrics.forEach(({ _id: date, registrations }) => {
+      if (dailyData[date]) {
+        dailyData[date].registrations += registrations;
       }
+    });
 
-      const pointsDaysAggregate = await Client.aggregate([
-        { $match: { _id: client._id } },
-        { $unwind: "$addedpromotions" },
-        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
-        { $unwind: "$addedpromotions.visitDates" },
-        {
-          $match: {
-            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
-            "addedpromotions.visitDates.pointsAdded": { $exists: true, $type: "number" },
-          },
-        },
-        {
-          $project: {
-            email: 1,
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
-            pointsAdded: "$addedpromotions.visitDates.pointsAdded",
-          },
-        },
-      ]);
-
-      console.log("📈 Agregación de puntos para cliente:", {
-        email: client.email,
-        numRegistros: pointsDaysAggregate.length,
-        puntosTotal: pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0),
-      });
-
-      const visitsDaysAggregate = await Client.aggregate([
-        { $match: { _id: client._id } },
-        { $unwind: "$addedpromotions" },
-        { $match: { "addedpromotions.promotion": { $in: accountPromotionIds } } },
-        { $unwind: "$addedpromotions.visitDates" },
-        {
-          $match: {
-            "addedpromotions.visitDates.date": { $exists: true, $type: "date" },
-          },
-        },
-        {
-          $project: {
-            email: 1,
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
-          },
-        },
-      ]);
-
-      console.log("🏃 Agregación de visitas para cliente:", {
-        email: client.email,
-        numVisitas: visitsDaysAggregate.length,
-      });
-
-      // Update total points
-      totalPoints += pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
-
-      // Update total visits
-      totalVisits += visitsDaysAggregate.length;
-
-      // Group data by client
-      const clientVisits = visitsDaysAggregate.length;
-      const clientPoints = pointsDaysAggregate.reduce((sum, entry) => sum + entry.pointsAdded, 0);
-
-      // Sum up the redeemCount for all promotions
-      const clientRedeemCount = client.addedpromotions.reduce((total, promo) => {
-        return total + (promo.redeemCount || 0); // Add redeemCount if it exists, otherwise add 0
-      }, 0);
-
-      totalRedeemCount += clientRedeemCount;
-
-      if (clientVisits > 0 || clientPoints > 0) {
-        visitDataByClient.push({
-          client: client.email,
-          visits: clientVisits,
-          points: clientPoints,
-          redeemCount: clientRedeemCount,
-          registrationDate,
-        });
-
-        pointDataByClient.push({
-          client: client.email,
-          points: clientPoints,
-          redeemCount: clientRedeemCount,
-          registrationDate,
-        });
+    // Populate dailyData with daily metrics
+    dailyMetrics.forEach(({ _id: { date }, visits, points, redeems }) => {
+      if (dailyData[date]) {
+        dailyData[date].visits += visits;
+        dailyData[date].points += points;
       }
+      totalVisits += visits;
+      totalPoints += points;
+      totalRedeemCount += redeems;
+    });
 
-      // Update dailyData for visits and points
-      visitsDaysAggregate.forEach((entry) => {
-        if (dailyData[entry.date]) {
-          dailyData[entry.date].visits++;
-        }
+    // Prepare customer-level metrics for client-specific data
+    customerMetrics.forEach(({ email, totalVisits, totalPoints, totalRedeems }) => {
+      visitDataByClient.push({
+        client: email,
+        visits: totalVisits,
+        points: totalPoints,
+        redeemCount: totalRedeems,
       });
 
-      pointsDaysAggregate.forEach((entry) => {
-        if (dailyData[entry.date]) {
-          dailyData[entry.date].points += entry.pointsAdded;
-        }
+      pointDataByClient.push({
+        client: email,
+        points: totalPoints,
+        redeemCount: totalRedeems,
       });
-    }
+    });
 
-    // Total clients updated based on registration within the period
-    totalClients = clients.filter((client) => {
-      const registrationDate = moment(client.createdAt || client._id.getTimestamp());
-      return registrationDate.isSameOrAfter(sevenDaysAgo);
-    }).length;
-
-    // Format and sort data
-    const orderedDailyData = Object.entries(dailyData)
-      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-      .map(([date, data]) => ({ date, ...data }));
-
-    // Sort clients by total visits
+    // Sort dailyData and client-level data
+    const orderedDailyData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
     visitDataByClient.sort((a, b) => b.visits - a.visits);
     pointDataByClient.sort((a, b) => b.points - a.points);
 
-    // Return the results
+    // Get total client count
+    const totalClients = await Client.countDocuments({ "addedAccounts.accountId": account._id });
+    const registeredClients = customerMetrics.length;
+
+    // Final response
     res.status(200).json({
       totalClients,
+      registeredClients,
       totalVisits,
       totalPoints,
-      totalRedeemCount, // Update this if you track redeem counts
-      totalPromotions,
+      totalRedeemCount,
+      totalPromotions: accountPromotionIds.length,
       visitDataByClient,
       pointDataByClient,
       dailyData: orderedDailyData,
     });
   } catch (error) {
-    console.error("❌ Error en getDashboardMetrics:", error);
+    console.error(error);
     res.status(500).json({ message: "Error retrieving dashboard metrics" });
   }
 };
+const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
+  return await Client.aggregate([
+    { $match: { "addedAccounts.accountId": accountId } }, // Match by account
+    { $unwind: "$addedpromotions" }, // Unwind promotions
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
+      },
+    },
+    { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visit dates
+    {
+      $match: {
+        $or: [
+          { "addedpromotions.visitDates.date": { $gte: startDate } }, // Include visits in the range
+        ],
+      },
+    },
+    {
+      $group: {
+        _id: {
+          date: {
+            $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$addedpromotions.visitDates.date", { $toDate: "$_id" }] } },
+          },
+        }, // Group by date
+        visits: { $sum: { $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0] } }, // Sum visits
+        points: { $sum: "$addedpromotions.visitDates.pointsAdded" }, // Sum points
+        redeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
+        registrations: {
+          $sum: {
+            $cond: [
+              { $gte: [{ $toDate: "$_id" }, startDate] }, // Check if registration date is in range
+              1,
+              0,
+            ],
+          },
+        }, // Sum registrations
+      },
+    },
+    { $sort: { "_id.date": 1 } }, // Sort by date
+  ]);
+};
 
+const getGlobalMetrics = async (accountId) => {
+  return await Client.aggregate([
+    {
+      $match: {
+        "addedAccounts.accountId": accountId,
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$_id" } } }, // Group by day
+        registrations: { $sum: 1 }, // Count registrations
+      },
+    },
+    { $sort: { _id: 1 } }, // Sort by date
+  ]);
+};
+const getCustomerMetrics = async (accountId, promotionIds) => {
+  return Client.aggregate([
+    { $match: { "addedAccounts.accountId": accountId } }, // Match clients by account
+    { $unwind: "$addedpromotions" }, // Unwind promotions
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: promotionIds }, // Filter by relevant promotions
+      },
+    },
+    { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visitDates
+    {
+      $group: {
+        _id: "$_id", // Group by client
+        email: { $first: "$email" }, // Preserve client email
+        totalVisits: {
+          $sum: {
+            $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0], // Count visits
+          },
+        },
+        totalPoints: {
+          $sum: {
+            $add: [
+              { $ifNull: ["$addedpromotions.pointsEarned", 0] }, // Sum pointsEarned
+              { $ifNull: ["$addedpromotions.visitDates.pointsAdded", 0] }, // Sum visitDates.pointsAdded
+            ],
+          },
+        },
+        totalRedeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
+      },
+    },
+  ]);
+};
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
