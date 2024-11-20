@@ -264,29 +264,14 @@ exports.getPromotionById = async (req, res) => {
         { $match: { "addedpromotions.promotion": promotion._id } },
         { $unwind: "$addedpromotions.visitDates" },
         {
-          $addFields: {
-            normalizedDate: {
-              $switch: {
-                branches: [
-                  // Caso 1: Cuando visitDates es directamente una fecha
-                  {
-                    case: { $eq: [{ $type: "$addedpromotions.visitDates" }, "date"] },
-                    then: "$addedpromotions.visitDates",
-                  },
-                  // Caso 2: Cuando visitDates tiene una propiedad date
-                  {
-                    case: { $eq: [{ $type: "$addedpromotions.visitDates.date" }, "date"] },
-                    then: "$addedpromotions.visitDates.date",
-                  },
-                ],
-                default: null,
+          $project: {
+            date: {
+              $cond: {
+                if: { $eq: [{ $type: "$addedpromotions.visitDates" }, "date"] },
+                then: "$addedpromotions.visitDates",
+                else: "$addedpromotions.visitDates.date",
               },
             },
-          },
-        },
-        {
-          $match: {
-            normalizedDate: { $ne: null },
           },
         },
         {
@@ -294,7 +279,7 @@ exports.getPromotionById = async (req, res) => {
             _id: {
               $dateToString: {
                 format: "%Y-%m-%d",
-                date: "$normalizedDate",
+                date: "$date",
               },
             },
             visits: { $sum: 1 },
@@ -1119,8 +1104,6 @@ exports.redeemPromotionPoints = async (req, res) => {
   }
 };
 
-<<<<<<< Updated upstream
-=======
 exports.getDashboardMetrics = async (req, res) => {
   const timePeriod = req.body.timePeriod || 7;
 
@@ -1298,7 +1281,6 @@ exports.getDashboardMetrics = async (req, res) => {
   }
 };
 
->>>>>>> Stashed changes
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
@@ -1398,7 +1380,6 @@ ${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> 
 
 const cron = require("node-cron");
 const { time } = require("console");
-const { register } = require("module");
 
 cron.schedule("0 0 * * *", async () => {
   try {
@@ -1479,202 +1460,6 @@ exports.getPromotionRegistrations = async (req, res) => {
   }
 };
 
-<<<<<<< Updated upstream
-
-exports.getDashboardMetrics = async (req, res) => {
-  const timePeriod = req.body.timePeriod || 7;
-  const startDate = moment().subtract(timePeriod, "days").startOf("day").toDate();
-
-  try {
-    const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
-
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    console.log("Creating Report for Account:", account._id);
-
-    const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
-    console.log("Account Promotion IDs:", accountPromotionIds);
-
-    // Execute the three queries
-    const [dailyMetrics, globalMetrics, customerMetrics] = await Promise.all([
-      getDailyMetrics(account._id, accountPromotionIds, startDate),
-      getGlobalMetrics(account._id),
-      getCustomerMetrics(account._id, accountPromotionIds),
-    ]);
-
-    console.log("Daily Metrics:", dailyMetrics);
-    console.log("Global Metrics:", globalMetrics);
-
-    // Initialize variables for response
-    const dailyData = {};
-    const visitDataByClient = [];
-    const pointDataByClient = [];
-    let totalVisits = 0;
-    let totalPoints = 0;
-    let totalRedeemCount = 0;
-
-    // Prepare dailyData structure
-    for (let i = 0; i < timePeriod; i++) {
-      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
-      dailyData[date] = { date, visits: 0, points: 0, registrations: 0 };
-    }
-
-    // Populate dailyData with global metrics
-    globalMetrics.forEach(({ _id: date, registrations }) => {
-      if (dailyData[date]) {
-        dailyData[date].registrations += registrations;
-      }
-    });
-
-    // Populate dailyData with daily metrics
-    dailyMetrics.forEach(({ _id: { date }, visits, points, redeems }) => {
-      if (dailyData[date]) {
-        dailyData[date].visits += visits;
-        dailyData[date].points += points;
-      }
-      totalVisits += visits;
-      totalPoints += points;
-      totalRedeemCount += redeems;
-    });
-
-    // Prepare customer-level metrics for client-specific data
-    customerMetrics.forEach(({ email, totalVisits, totalPoints, totalRedeems }) => {
-      visitDataByClient.push({
-        client: email,
-        visits: totalVisits,
-        points: totalPoints,
-        redeemCount: totalRedeems,
-      });
-
-      pointDataByClient.push({
-        client: email,
-        points: totalPoints,
-        redeemCount: totalRedeems,
-      });
-    });
-
-    // Sort dailyData and client-level data
-    const orderedDailyData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
-    visitDataByClient.sort((a, b) => b.visits - a.visits);
-    pointDataByClient.sort((a, b) => b.points - a.points);
-
-    // Get total client count
-    const totalClients = await Client.countDocuments({ "addedAccounts.accountId": account._id });
-    const registeredClients = customerMetrics.length;
-
-    // Final response
-    res.status(200).json({
-      totalClients,
-      registeredClients,
-      totalVisits,
-      totalPoints,
-      totalRedeemCount,
-      totalPromotions: accountPromotionIds.length,
-      visitDataByClient,
-      pointDataByClient,
-      dailyData: orderedDailyData,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error retrieving dashboard metrics" });
-  }
-};
-
-
-const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
-  return await Client.aggregate([
-    { $match: { "addedAccounts.accountId": accountId } }, // Match by account
-    { $unwind: "$addedpromotions" }, // Unwind promotions
-    {
-      $match: {
-        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
-      },
-    },
-    { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visit dates
-    {
-      $match: {
-        $or: [
-          { "addedpromotions.visitDates.date": { $gte: startDate } }, // Include visits in the range
-        ],
-      },
-    },
-    {
-      $group: {
-        _id: {
-          date: {
-            $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$addedpromotions.visitDates.date", { $toDate: "$_id" }] } },
-          },
-        }, // Group by date
-        visits: { $sum: { $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0] } }, // Sum visits
-        points: { $sum: "$addedpromotions.visitDates.pointsAdded" }, // Sum points
-        redeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
-        registrations: {
-          $sum: {
-            $cond: [
-              { $gte: [{ $toDate: "$_id" }, startDate] }, // Check if registration date is in range
-              1,
-              0,
-            ],
-          },
-        }, // Sum registrations
-      },
-    },
-    { $sort: { "_id.date": 1 } }, // Sort by date
-  ]);
-};
-
-const getGlobalMetrics = async (accountId) => {
-  return await Client.aggregate([
-    {
-      $match: {
-        "addedAccounts.accountId": accountId,
-      },
-    },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$_id" } } }, // Group by day
-        registrations: { $sum: 1 }, // Count registrations
-      },
-    },
-    { $sort: { _id: 1 } }, // Sort by date
-  ]);
-};
-const getCustomerMetrics = async (accountId, promotionIds) => {
-  return Client.aggregate([
-    { $match: { "addedAccounts.accountId": accountId } }, // Match clients by account
-    { $unwind: "$addedpromotions" }, // Unwind promotions
-    {
-      $match: {
-        "addedpromotions.promotion": { $in: promotionIds }, // Filter by relevant promotions
-      },
-    },
-    { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visitDates
-    {
-      $group: {
-        _id: "$_id", // Group by client
-        email: { $first: "$email" }, // Preserve client email
-        totalVisits: {
-          $sum: {
-            $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0], // Count visits
-          },
-        },
-        totalPoints: {
-          $sum: {
-            $add: [
-              { $ifNull: ["$addedpromotions.pointsEarned", 0] }, // Sum pointsEarned
-              { $ifNull: ["$addedpromotions.visitDates.pointsAdded", 0] }, // Sum visitDates.pointsAdded
-            ],
-          },
-        },
-        totalRedeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
-      },
-    },
-  ]);
-};
-
-=======
 exports.getWeeklyVisits = async (req, res) => {
   try {
     console.log("1. Iniciando getWeeklyVisits");
@@ -1791,4 +1576,3 @@ exports.getWeeklyVisits = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
->>>>>>> Stashed changes
