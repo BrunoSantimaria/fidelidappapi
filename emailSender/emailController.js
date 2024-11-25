@@ -40,10 +40,14 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
     }
 
     try {
-      const personalizedTemplate = template.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
+      const replaceNombreCliente = (text) => text.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
+
+      const personalizedTemplate = replaceNombreCliente(template);
+      const personalizedSubject = replaceNombreCliente(subject);
+
       const emailData = {
         to: [client.email],
-        subject: subject,
+        subject: personalizedSubject,
         template: personalizedTemplate,
         from: fromEmail,
       };
@@ -184,8 +188,14 @@ exports.emailSenderEditor = async (req, res) => {
     if (typeof template !== "string") {
       return res.status(400).send("Invalid template format.");
     }
-
+    if (!account.firstEmailMarketingCompleted) account.firstEmailMarketingCompleted = true;
+    await account.save;
     await sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit);
+
+    if (!account.firstEmailMarketingCompleted) {
+      account.firstEmailMarketingCompleted = true;
+      await account.save();
+    }
 
     res.status(200).send("Emails sent successfully!");
     console.log(emailLimit, emailsSentLast30Days);

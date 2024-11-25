@@ -5,6 +5,7 @@ const { verifyToken } = require("../middleware/verifyToken.js");
 const { fileUpload } = require("./imagesutils/filemanager.js");
 
 // Route to handle creating a new promotion
+router.get("/stats/weekly-visits", verifyToken, promotionController.getWeeklyVisits);
 router.post("/create", verifyToken, fileUpload, promotionController.createPromotion);
 router.get("", verifyToken, promotionController.getPromotions);
 router.get("/:id", promotionController.getPromotionById);

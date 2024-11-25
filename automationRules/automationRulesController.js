@@ -1,5 +1,5 @@
-const express = require('express');
-const AutomationRule = require('./automationRules.model'); // Adjust the path as necessary
+const express = require("express");
+const AutomationRule = require("./automationRules.model"); // Adjust the path as necessary
 const Account = require("../accounts/Account.model");
 
 // GET: Fetch all automation rules
@@ -20,11 +20,10 @@ exports.fetchAccountRules = async (req, res) => {
 
 // POST: Create a new automation rule
 exports.createRule = async (req, res) => {
-  console.log(req.body)
+
   const account = await Account.findOne({ userEmails: req.email });
   const { name, condition, conditionValue, subject, message, isActive = true } = req.body;
-
-
+  console.log(req.body);
 
   // Validate required fields
   if (!account || !name || !condition || !conditionValue || !subject || !message) {

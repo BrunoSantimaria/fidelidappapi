@@ -64,6 +64,7 @@ const createPreference = async (req, res) => {
     };
 
     const preference = new Preference(client);
+    console.log("Preference data:", preferenceData);
     const result = await preference.create({ body: preferenceData });
 
     const subscriptionId = await createPreapproval(accountId);
@@ -72,7 +73,7 @@ const createPreference = async (req, res) => {
 
     res.status(200).json({ id: result.id, subscriptionId: subscriptionId });
   } catch (error) {
-    console.error("Error al crear la preferencia:", error);
+    console.error("Error detallado:", JSON.stringify(error, null, 2));
     res.status(500).json({ error: "Error al crear la preferencia" });
   }
 };
@@ -187,11 +188,15 @@ const checkSubscription = async (req, res) => {
 
   try {
     const objectId = new mongoose.Types.ObjectId(accountId);
-
     const account = await Account.findById(objectId);
 
     if (!account) {
       return res.status(404).json({ message: "Cuenta no encontrada" });
+    }
+
+    // Verificar planes especiales y gratuito
+    if (account.planStatus === "free") {
+      return res.status(200).json({ message: "Plan gratuito activo" });
     }
     if (account.planStatus === "admin") {
       return res.status(200).json({ message: "Plan de administrador" });
@@ -199,11 +204,19 @@ const checkSubscription = async (req, res) => {
     if (account.planStatus === "pro2") {
       return res.status(200).json({ message: "Plan de pago externo" });
     }
-    const payerId = await obtenerPayerId(account.subscriptionId);
+    if (account.planStatus === "premium") {
+      return res.status(200).json({ message: "Plan premium activo" });
+    }
+
+    // Solo verificar subscriptionId y payerId si es un plan de pago regular
     if (!account.subscriptionId) {
+      await account.updatePlan("free", null);
       return res.status(404).json({ message: "No hay suscripción activa." });
     }
+
+    const payerId = await obtenerPayerId(account.subscriptionId);
     console.log("payer id", payerId);
+
     if (!payerId) {
       await account.updatePlan("free", null);
       return res.status(404).json({ message: "No se encontró el payer_id asociado." });

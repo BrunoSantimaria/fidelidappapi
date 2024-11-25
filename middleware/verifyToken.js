@@ -3,30 +3,31 @@ const jwt = require("jsonwebtoken");
 exports.verifyToken = async (req, res, next) => {
   try {
     // Prioridad 1: Verificar el token en los headers
-    let token = req.headers.authorization?.split(" ")[1]; // Suponiendo que el token viene en el formato 'Bearer <token>'
+    let token = req.headers.authorization?.split(" ")[1];
 
-    // Prioridad 2: Si no hay token en los headers, verificar en las cookies
+    // Prioridad 2: Verificar en las cookies
     if (!token) {
       token = req.cookies.token;
     }
 
-    // Si no hay token en ninguno de los dos lugares, devolver un error
+    // Prioridad 3: Verificar en query params
+    if (!token) {
+      token = req.query.token;
+    }
+
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    // Verificar el token
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
       if (err) {
-        res.clearCookie("token"); // Borra la cookie si el token es inválido
+        res.clearCookie("token");
         return res.status(401).json({ message: "Invalid token" });
-      } else {
-        // Token válido
-        req.name = decoded.name;
-        req.email = decoded.email;
-        req.userid = decoded.id;
-        next();
       }
+      req.name = decoded.name;
+      req.email = decoded.email;
+      req.userid = decoded.id;
+      next();
     });
   } catch (error) {
     console.error("Error en la verificación del token:", error);
