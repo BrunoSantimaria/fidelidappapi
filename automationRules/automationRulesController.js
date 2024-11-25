@@ -20,10 +20,11 @@ exports.fetchAccountRules = async (req, res) => {
 
 // POST: Create a new automation rule
 exports.createRule = async (req, res) => {
-    const account = await Account.findOne({ userEmails: req.email });
-    const { name, condition, conditionValue, subject, message, isActive = true } = req.body.rule;
-    
-    console.log(req.body)
+  console.log(req.body)
+  const account = await Account.findOne({ userEmails: req.email });
+  const { name, condition, conditionValue, subject, message, isActive = true } = req.body;
+
+
 
   // Validate required fields
   if (!account || !name || !condition || !conditionValue || !subject || !message) {
