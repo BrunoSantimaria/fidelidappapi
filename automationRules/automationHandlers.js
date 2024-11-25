@@ -1,6 +1,7 @@
 const Client = require("../promotions/client.model");
 const Promotion = require("../promotions/promotions.model");
 const { sendMarketingEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
+const mongoose = require("mongoose");
 
 // Handler para clientes inactivos
 async function handleClientInactivity(rule) {
@@ -54,10 +55,10 @@ async function handleClientInactivity(rule) {
     const lastVisitDay = fechas[fechas.length - 1]; // Ya está en formato YYYY-MM-DD
     const thresholdDay = inactivityThreshold.toISOString().split("T")[0];
 
-    console.log(client.email);
-    console.log(fechas);
-    console.log("Last visit day:", lastVisitDay);
-    console.log("Threshold day:", thresholdDay);
+    //console.log(client.email);
+    //console.log(fechas);
+    //console.log("Last visit day:", lastVisitDay);
+    //console.log("Threshold day:", thresholdDay);
 
     // Verificar si la última visita coincide con el umbral de inactividad
     if (lastVisitDay === thresholdDay) {

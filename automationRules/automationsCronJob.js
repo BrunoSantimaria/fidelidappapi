@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const AutomationRule = require('./automationRules.model');
 const { handleClientInactivity, handlePromotionExpiration, handleCustomDateRule } = require('./automationHandlers');
 
-automationCronJob = cron.schedule('0 09 * * *', async () => { // Corre todos los dias a las 9:00 AM
+automationCronJob = cron.schedule('0 13 * * *', async () => { // Corre todos los dias a las 13 UTC 09 am Chile
 //automationCronJob = cron.schedule('*/30 * * * * *', async () => { // Cada 30 segundos
         console.log('Executing automation rules...');
         try {
