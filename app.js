@@ -12,17 +12,17 @@ require("./automationRules/automationsCronJob");
 require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
+const { scheduledEmailsCron } = require("./utils/ProcessScheduledEmails");
 
 dotenv.config();
 
 // Conexión a la base de datos
 mongoose
-  .connect(process.env.DB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.DB_URI)
   .then(() => {
     console.log("Conectado a MongoDB");
+    scheduledEmailsCron.start();
+    console.log("Cron job de emails programados iniciado");
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);
@@ -55,15 +55,30 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware
-const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl", "https://fidelidappclient.vercel.app"];
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173"],
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-app.use(cors(corsOptions));
-app.options("*", cors());
+// Configuración CORS general
+app.use((req, res, next) => {
+  // Excepción para webhooks de Sendgrid
+  if (req.path === "/api/webhooks/sendgrid") {
+    return next();
+  }
+  // Aplicar CORS normal para otras rutas
+  cors(corsOptions)(req, res, next);
+});
+
+// Configurar OPTIONS para todas las rutas excepto webhooks
+app.options("*", (req, res, next) => {
+  if (req.path === "/api/webhooks/sendgrid") {
+    return next();
+  }
+  cors(corsOptions)(req, res, next);
+});
 
 // Routes
 const authRoutes = require("./auth/authRoutes");
@@ -79,6 +94,8 @@ const leadsemailparserRoutes = require("./utils/leadsemailparser");
 const templateRoutes = require("./template/templateRoutes");
 const eventRoutes = require("./events/eventsRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const webhookRoutes = require("./routes/webhook.routes");
+const { scheduleEmail } = require("./emailSender/emailController");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -92,6 +109,7 @@ app.use("/api/leadsemailparser", leadsemailparserRoutes);
 app.use("/api/template/", templateRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/webhooks", webhookRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

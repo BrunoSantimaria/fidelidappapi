@@ -8,57 +8,39 @@ exports.getAccountClients = async (req, res) => {
   const accountIdObj = StrToObjectId(accountId);
 
   try {
-    // Buscar la cuenta con las promociones del restaurante
-    const account = await Account.findById(accountIdObj).populate({
-      path: "promotions",
-      model: "Promotion",
-    });
+    // Realizar búsquedas en paralelo usando Promise.all
+    const [account, clients] = await Promise.all([
+      Account.findById(accountIdObj).populate("promotions", "_id systemType"),
+      Client.find({ "addedAccounts.accountId": accountIdObj }),
+    ]);
 
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // Obtener los IDs de las promociones asociadas al restaurante (owner) y su tipo de sistema
-    const restaurantPromotions = account.promotions.map((promo) => ({
-      _id: promo._id,
-      systemType: promo.systemType,
-    }));
-
-    // Buscar los clientes asociados al `accountId`, sin importar si tienen promociones o no
-    const clients = await Client.find({
-      "addedAccounts.accountId": accountIdObj,
-    });
-
     if (!clients.length) {
       return res.status(200).json({ clients: [] });
     }
 
-    // Para cada cliente, filtrar las promociones que coincidan con las del restaurante y sus cuentas asociadas
+    // Crear un Map para acceso más rápido a las promociones
+    const promotionsMap = new Map(account.promotions.map((promo) => [promo._id.toString(), promo.systemType]));
+
+    // Procesar clientes de manera más eficiente
     const updatedClients = clients.map((client) => {
-      // Filtrar las promociones del cliente que coincidan con las promociones del restaurante
       const filteredPromotions = client.addedpromotions
-        .filter((promotionEntry) => restaurantPromotions.some((promo) => promo._id.equals(promotionEntry.promotion)))
-        .map((promotionEntry) => {
-          // Encontrar el tipo de sistema asociado a la promoción
-          const restaurantPromo = restaurantPromotions.find((promo) => promo._id.equals(promotionEntry.promotion));
-          return {
-            ...promotionEntry.toObject(),
-            systemType: restaurantPromo.systemType, // Añadir systemType a cada promoción
-          };
-        });
+        .filter((promo) => promotionsMap.has(promo.promotion.toString()))
+        .map((promo) => ({
+          ...promo.toObject(),
+          systemType: promotionsMap.get(promo.promotion.toString()),
+        }));
 
-      // Filtrar los `addedAccounts` para devolver solo el que coincide con el `accountId`
-      const filteredAccounts = client.addedAccounts.filter((account) => account.accountId.equals(accountIdObj));
-
-      // Retornar el cliente con las promociones y cuentas filtradas
       return {
         ...client.toObject(),
         addedpromotions: filteredPromotions,
-        addedAccounts: filteredAccounts,
+        addedAccounts: [client.addedAccounts.find((acc) => acc.accountId.equals(accountIdObj))].filter(Boolean),
       };
     });
 
-    // Enviar la respuesta con los clientes actualizados
     return res.status(200).json({ clients: updatedClients });
   } catch (error) {
     console.error("Error fetching and updating clients:", error);

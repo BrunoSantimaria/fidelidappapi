@@ -95,7 +95,7 @@ const accountSchema = new mongoose.Schema({
     whatsapp: { type: String, default: "" },
     website: { type: String, default: "" },
   },
-  emailsSentCount: { type: Number, default: 0 },
+  emailsSentCount: { type: Number, default: 0, min: 0 },
   lastEmailSentAt: { type: Date, default: null },
   expirationDate: { type: Date, default: null },
   phone: { type: String, default: "" },
