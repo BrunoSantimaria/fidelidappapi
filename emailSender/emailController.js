@@ -1,6 +1,8 @@
 const { sendMarketingEmailEditor } = require("../utils/emailSenderEditor");
 const { sendMarketingEmail } = require("../utils/emailSender");
 const Account = require("../accounts/Account.model");
+const Promotion = require("../promotions/promotions.model");
+const Client = require("../promotions/client.model");
 const chalk = require("chalk");
 const axios = require("axios");
 const MAX_CONCURRENT_EMAILS = 100; // Número máximo de correos a enviar simultáneamente
@@ -201,6 +203,55 @@ exports.emailSenderEditor = async (req, res) => {
     console.log(emailLimit, emailsSentLast30Days);
   } catch (error) {
     console.error("Error processing the request:", error);
+    res.status(500).send("Error processing the request: " + error.message);
+  }
+};
+
+
+exports.previewPromotionEmails = async (req, res) => {
+  try {
+    const { promotionId } = req.body;
+
+    if (!promotionId) {
+      return res.status(400).send("Promotion ID is required.");
+    }
+
+    const account = await Account.findOne({ userEmails: req.email });
+    if (!account) {
+      return res.status(404).send("Account not found.");
+    }
+
+    const promotion = await Promotion.findById(promotionId);
+    if (!promotion) {
+      return res.status(404).send("Promotion not found.");
+    }
+
+    // Obtener clientes asociados con la cuenta
+    const clients = await Client.find({ accountId: account._id });
+
+    // Filtrar clientes que no tienen la promoción
+    const clientsNotInPromotion = clients.filter((client) =>
+      !client.addedPromotions.some((addedPromo) => addedPromo.promotion.toString() === promotionId)
+    );
+
+    if (clientsNotInPromotion.length === 0) {
+      return res.status(200).send({
+        message: "All clients are already registered in this promotion.",
+        totalEmailsToSend: 0,
+        recipients: [],
+      });
+    }
+
+    res.status(200).send({
+      message: "Emails ready to be sent.",
+      totalEmailsToSend: clientsNotInPromotion.length,
+      recipients: clientsNotInPromotion.map((client) => ({
+        name: client.name,
+        email: client.email,
+      })),
+    });
+  } catch (error) {
+    console.error("Error in previewPromotionEmails:", error);
     res.status(500).send("Error processing the request: " + error.message);
   }
 };
