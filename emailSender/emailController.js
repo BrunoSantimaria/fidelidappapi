@@ -244,9 +244,7 @@ exports.emailSenderEditor = async (req, res) => {
       await savedCampaign.save();
 
       // Actualizar el contador de correos enviados en la cuenta
-      const account = await Account.findById(savedCampaign.accountId);
       if (account) {
-        // Asegurarse de que emailsSentCount sea un número
         const currentCount = account.emailsSentCount || 0;
         account.emailsSentCount = currentCount + savedCampaign.metrics.delivered;
         account.lastEmailSentAt = new Date();
