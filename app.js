@@ -12,17 +12,17 @@ require("./automationRules/automationsCronJob");
 require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
+const { scheduledEmailsCron } = require("./utils/ProcessScheduledEmails");
 
 dotenv.config();
 
 // Conexión a la base de datos
 mongoose
-  .connect(process.env.DB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.DB_URI)
   .then(() => {
     console.log("Conectado a MongoDB");
+    scheduledEmailsCron.start();
+    console.log("Cron job de emails programados iniciado");
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);
@@ -56,9 +56,9 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 
 // Middleware
-const allowedOrigins = ["http://localhost:5173", "https://www.fidelidapp.cl", "https://fidelidappclient.vercel.app"];
+
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: "*",
   credentials: true,
 };
 
@@ -79,6 +79,8 @@ const leadsemailparserRoutes = require("./utils/leadsemailparser");
 const templateRoutes = require("./template/templateRoutes");
 const eventRoutes = require("./events/eventsRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const webhookRoutes = require("./routes/webhook.routes");
+const { scheduleEmail } = require("./emailSender/emailController");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -92,6 +94,7 @@ app.use("/api/leadsemailparser", leadsemailparserRoutes);
 app.use("/api/template/", templateRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/webhooks", webhookRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

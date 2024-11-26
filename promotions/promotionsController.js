@@ -112,63 +112,74 @@ exports.getPromotions = async (req, res) => {
 
     // Buscar usuario por email
     const user = await User.findOne({ email });
-
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Obtener promociones del usuario
-    const promotions = await Promotion.find({ userID: user._id });
+    // Obtener promociones y métricas en una sola consulta usando agregación
+    const [promotions, metrics] = await Promise.all([
+      // Consulta de promociones
+      Promotion.find({ userID: user._id }),
 
-    // Obtener los IDs de promociones
-    const promotionIds = promotions.map((promotion) => promotion._id.toString());
+      // Consulta de métricas usando agregación
+      Client.aggregate([
+        // Filtrar clientes que tienen promociones del usuario
+        {
+          $match: {
+            "addedpromotions.promotion": {
+              $in: (await Promotion.find({ userID: user._id }, "_id")).map((p) => p._id),
+            },
+          },
+        },
+        // Desarmar el array de promociones
+        { $unwind: "$addedpromotions" },
+        // Agrupar y calcular métricas
+        {
+          $group: {
+            _id: null,
+            registeredClients: { $addToSet: "$_id" }, // Contar clientes únicos
+            totalVisits: {
+              $sum: {
+                $cond: {
+                  if: { $isArray: "$addedpromotions.visitDates" },
+                  then: { $size: "$addedpromotions.visitDates" },
+                  else: 0,
+                },
+              },
+            },
+            totalPoints: {
+              $sum: { $ifNull: ["$addedpromotions.pointsEarned", 0] },
+            },
+            redeemedGifts: {
+              $sum: { $ifNull: ["$addedpromotions.redeemCount", 0] },
+            },
+          },
+        },
+      ]),
+    ]);
 
-    // Buscar clientes con promociones asociadas a los IDs de promoción del usuario
-    const clients = await Client.find({ "addedpromotions.promotion": { $in: promotionIds } });
+    // Extraer métricas del resultado de la agregación
+    const metricsData = metrics[0] || {
+      registeredClients: [],
+      totalVisits: 0,
+      totalPoints: 0,
+      redeemedGifts: 0,
+    };
 
-    // Calcular métricas
-    let totalVisitsCount = 0;
-    let totalPointsCount = 0;
-    let redeemedGiftsCount = 0;
-
-    // Calcular métricas de visitas, puntos y redenciones
-    clients.forEach((client) => {
-      (client.addedpromotions || []).forEach((promotionEntry) => {
-        if (promotionIds.includes(promotionEntry.promotion.toString())) {
-          const promotionDetails = promotions.find((promo) => promo._id.toString() === promotionEntry.promotion.toString());
-          if (promotionDetails) {
-            // Verificación adicional de tipo de sistema
-            if (promotionDetails.systemType === "points") {
-              totalPointsCount += promotionEntry.pointsEarned || 0;
-            }
-            redeemedGiftsCount += typeof promotionEntry.redeemCount === "number" ? promotionEntry.redeemCount : 0;
-          }
-
-          // Revisa y suma la cantidad de fechas de visita
-          if (Array.isArray(promotionEntry.visitDates)) {
-            totalVisitsCount += promotionEntry.visitDates.length;
-          } else {
-          }
-        }
-      });
-    });
-    //console.log("Total de puntos:", totalPointsCount);
-    //console.log("Total de visitas:", totalVisitsCount);
-
-    // Responder con las promociones y métricas actualizadas
+    // Responder con las promociones y métricas
     res.status(200).json({
       promotions,
       metrics: {
         activePromotions: promotions.length,
-        registeredClients: clients.length,
-        totalVisits: totalVisitsCount,
-        totalPoints: totalPointsCount,
-        redeemedGifts: redeemedGiftsCount,
+        registeredClients: metricsData.registeredClients.length,
+        totalVisits: metricsData.totalVisits,
+        totalPoints: metricsData.totalPoints,
+        redeemedGifts: metricsData.redeemedGifts,
       },
     });
   } catch (error) {
-    console.error("Error fetching promotions:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error al obtener promociones:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 };
 

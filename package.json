@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "start": "NODE_NO_WARNINGS=1 node server.js",
+    "nodemon": "nodemon NODE_NO_WARNINGS=1 server.js"
   },
   "keywords": [],
   "author": "",
@@ -38,5 +41,11 @@
     "passport-google-oauth20": "^2.0.0",
     "qrcode": "^1.5.4",
     "twilio": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.1.2",
+    "supertest": "^7.0.0"
   }
 }
