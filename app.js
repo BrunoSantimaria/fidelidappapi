@@ -55,15 +55,30 @@ app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware
-
 const corsOptions = {
-  origin: "*",
+  origin: ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173"],
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-app.use(cors(corsOptions));
-app.options("*", cors());
+// Configuración CORS general
+app.use((req, res, next) => {
+  // Excepción para webhooks de Sendgrid
+  if (req.path === "/api/webhooks/sendgrid") {
+    return next();
+  }
+  // Aplicar CORS normal para otras rutas
+  cors(corsOptions)(req, res, next);
+});
+
+// Configurar OPTIONS para todas las rutas excepto webhooks
+app.options("*", (req, res, next) => {
+  if (req.path === "/api/webhooks/sendgrid") {
+    return next();
+  }
+  cors(corsOptions)(req, res, next);
+});
 
 // Routes
 const authRoutes = require("./auth/authRoutes");
