@@ -37,10 +37,14 @@ const campaignSchema = new mongoose.Schema(
     },
     metrics: {
       totalSent: { type: Number, default: 0 },
+      processed: { type: Number, default: 0 },
+      deferred: { type: Number, default: 0 },
       delivered: { type: Number, default: 0 },
+      bounces: { type: Number, default: 0 },
+      blocked: { type: Number, default: 0 },
+      spam: { type: Number, default: 0 },
       opens: { type: Number, default: 0 },
       clicks: { type: Number, default: 0 },
-      bounces: { type: Number, default: 0 },
       unsubscribes: { type: Number, default: 0 },
     },
     startDate: {

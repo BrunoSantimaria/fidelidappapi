@@ -10,14 +10,12 @@ exports.handleWebhook = async (req, res) => {
         email: e.email,
         timestamp: e.timestamp,
         sg_message_id: e.sg_message_id,
-        tracking_settings: e.tracking_settings,
       })),
     });
 
     for (const event of req.body) {
       const fullMessageId = event.sg_message_id;
       const baseMessageId = fullMessageId.split(".")[0];
-      console.log("Buscando campaña con messageId:", baseMessageId);
 
       const campaign = await Campaign.findOne({
         $or: [{ sendgridMessageId: baseMessageId }, { sendgridMessageIds: baseMessageId }],
@@ -28,56 +26,38 @@ exports.handleWebhook = async (req, res) => {
         continue;
       }
 
-      console.log("Campaña encontrada:", campaign._id);
-
-      console.log("Procesando evento:", {
-        tipo: event.event,
-        email: event.email,
-        campaignId: campaign._id,
-      });
-
       try {
-        // Actualizar métricas según el evento
         switch (event.event.toLowerCase()) {
           case "processed":
-            // No incrementar métricas
+            campaign.metrics.processed += 1;
+            break;
+          case "deferred":
+            campaign.metrics.deferred += 1;
             break;
           case "delivered":
             campaign.metrics.delivered += 1;
-
-            // Actualizar el contador de emails enviados en la cuenta
             if (campaign.accountId) {
               campaign.accountId.emailsSentCount = (campaign.accountId.emailsSentCount || 0) + 1;
               await campaign.accountId.save();
-
-              console.log("Account emailsSentCount actualizado en webhook:", {
-                accountId: campaign.accountId._id,
-                previousCount: campaign.accountId.emailsSentCount - 1,
-                newCount: campaign.accountId.emailsSentCount,
-              });
-            }
-
-            if (campaign.metrics.delivered + campaign.metrics.bounces === campaign.metrics.totalSent) {
-              campaign.status = "completed";
             }
             break;
           case "bounce":
           case "dropped":
             campaign.metrics.bounces += 1;
-            if (campaign.metrics.delivered + campaign.metrics.bounces === campaign.metrics.totalSent) {
-              campaign.status = "completed";
-            }
+            break;
+          case "blocked":
+            campaign.metrics.blocked += 1;
+            break;
+          case "spam_report":
+            campaign.metrics.spam += 1;
             break;
           case "open":
             campaign.metrics.opens += 1;
-            console.log("Evento de apertura registrado para:", event.email);
             break;
           case "click":
             campaign.metrics.clicks += 1;
-            // Si hay un click pero no hay opens, incrementamos opens también
             if (campaign.metrics.opens === 0) {
               campaign.metrics.opens += 1;
-              console.log("Incrementando opens debido a click para:", event.email);
             }
             break;
           case "unsubscribe":
@@ -85,7 +65,6 @@ exports.handleWebhook = async (req, res) => {
             campaign.metrics.unsubscribes += 1;
             break;
           case "group_resubscribe":
-            // Decrementamos unsubscribes si es mayor que 0
             if (campaign.metrics.unsubscribes > 0) {
               campaign.metrics.unsubscribes -= 1;
             }
@@ -94,17 +73,19 @@ exports.handleWebhook = async (req, res) => {
             console.log(`Evento no manejado: ${event.event}`);
         }
 
+        // Verificar si todos los correos han sido procesados
+        const totalProcessed = campaign.metrics.delivered + campaign.metrics.bounces + campaign.metrics.blocked + campaign.metrics.spam;
+
+        if (totalProcessed === campaign.metrics.totalSent) {
+          campaign.status = "completed";
+          console.log(`Campaña ${campaign._id} completada:`, campaign.metrics);
+        }
+
         await campaign.save();
         console.log(`Métricas actualizadas para campaña ${campaign._id}:`, campaign.metrics);
       } catch (error) {
         console.error(`Error procesando evento:`, error);
       }
-
-      console.log("SendGrid Event:", {
-        event: event.event,
-        email: event.email,
-        sg_message_id: event.sg_message_id,
-      });
     }
 
     res.status(200).send("OK");
