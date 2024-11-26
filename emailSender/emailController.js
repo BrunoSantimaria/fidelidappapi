@@ -205,7 +205,7 @@ exports.emailSenderEditor = async (req, res) => {
       for (const client of clients) {
         const msg = {
           to: client.email,
-          from: "contacto@fidelidapp.cl",
+          from: account.senderEmail || "contacto@fidelidapp.cl",
           subject: subject.replace(/{nombreCliente}/g, client.name || ""),
           html: template.replace(/{nombreCliente}/g, client.name || ""),
           custom_args: {
