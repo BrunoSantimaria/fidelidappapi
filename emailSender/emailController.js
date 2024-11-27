@@ -579,7 +579,6 @@ exports.scheduleEmail = async (req, res) => {
   try {
     const { subject, template, clients, scheduledDate, campaignName } = req.body;
 
-    // Buscar la cuenta usando el email del token
     const account = await Account.findOne({ userEmails: req.email });
     if (!account) {
       return res.status(404).json({
@@ -588,7 +587,6 @@ exports.scheduleEmail = async (req, res) => {
       });
     }
 
-    // Validaciones básicas
     if (!subject || !template || !clients || !scheduledDate) {
       return res.status(400).json({
         success: false,
@@ -698,5 +696,106 @@ exports.previewPromotionEmails = async (req, res) => {
   } catch (error) {
     console.error("Error in previewPromotionEmails:", error);
     res.status(500).send("Error processing the request: " + error.message);
+  }
+};
+
+// Función para actualizar la fecha de un correo programado
+exports.updateScheduledEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newScheduleDate } = req.body;
+
+    console.log("Iniciando actualización de correo programado:", {
+      id,
+      newScheduleDate,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Validar que newScheduleDate no sea undefined o null
+    if (!newScheduleDate) {
+      console.error("Fecha de programación no proporcionada o inválida:", newScheduleDate);
+      return res.status(400).json({
+        success: false,
+        message: "Fecha de programación no proporcionada o inválida",
+      });
+    }
+
+    // Verificar si la fecha es válida
+    const parsedDate = new Date(newScheduleDate);
+    if (isNaN(parsedDate)) {
+      console.error("Fecha de programación no válida:", newScheduleDate);
+      return res.status(400).json({
+        success: false,
+        message: "Fecha de programación no válida",
+      });
+    }
+
+    // Actualizar usando el nombre correcto del campo: scheduledFor en lugar de scheduleDate
+    const updatedEmail = await ScheduledEmail.findByIdAndUpdate(
+      id,
+      { scheduledFor: parsedDate }, // Cambiado de scheduleDate a scheduledFor
+      { new: true }
+    );
+
+    console.log("Resultado de la actualización:", {
+      success: !!updatedEmail,
+      emailId: id,
+      updatedData: updatedEmail,
+      newScheduledFor: updatedEmail?.scheduledFor, // Log para verificar la nueva fecha
+    });
+
+    if (!updatedEmail) {
+      console.log("Correo programado no encontrado:", { id });
+      return res.status(404).json({
+        success: false,
+        message: "Correo programado no encontrado",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Fecha actualizada correctamente",
+      email: updatedEmail,
+    });
+  } catch (error) {
+    console.error("Error en updateScheduledEmail:", {
+      error: error.message,
+      stack: error.stack,
+      params: { id: req.params.id, newDate: req.body.newScheduleDate },
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Error al actualizar la fecha del correo",
+      error: error.message,
+    });
+  }
+};
+
+// Función para eliminar un correo programado
+exports.deleteScheduledEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Eliminar el correo programado de la base de datos
+    const deletedEmail = await ScheduledEmail.findByIdAndDelete(id);
+
+    if (!deletedEmail) {
+      return res.status(404).json({
+        success: false,
+        message: "Correo programado no encontrado",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Correo programado eliminado correctamente",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error al eliminar el correo programado",
+      error: error.message,
+    });
   }
 };
