@@ -364,10 +364,7 @@ exports.emailSenderEditor = async (req, res) => {
                     <strong>Emails enviados:</strong>
                     <span> ${updatedCampaign.metrics.totalSent || 0}</span>
                   </div>
-                  <div class="metric-item">
-                    <strong>Emails entregados:</strong>
-                    <span> ${updatedCampaign.metrics.delivered || 0}</span>
-                  </div>
+               
               
              
                   <div class="metric-item">
@@ -535,7 +532,6 @@ exports.handleWebhookEvent = async (req, res) => {
               metrics: campaign.metrics,
             });
           } else {
-            console.log("No se encontró la campaña:", campaignId);
           }
 
           // Actualizar el cliente
