@@ -49,7 +49,7 @@ async function sendEmailsInBatches(clients, template, subject, account, emailsSe
     }
 
     try {
-      const replaceNombreCliente = (text) => text.replace("{nombreCliente}", client.name === "Cliente" ? "" : client.name);
+      const replaceNombreCliente = (text) => text.replace("{nombreCliente}", client.name === "" ? "" : client.name);
 
       const personalizedTemplate = replaceNombreCliente(template);
       const personalizedSubject = replaceNombreCliente(subject);
@@ -605,27 +605,7 @@ exports.scheduleEmail = async (req, res) => {
       });
     }
 
-    // Crear la campaña primero
-    const campaign = new Campaign({
-      accountId: account._id,
-      name: campaignName || subject,
-      subject: subject,
-      template: template,
-      status: "scheduled", // Nuevo estado para campañas programadas
-      scheduledFor: scheduledFor,
-      metrics: {
-        totalSent: 0,
-        delivered: 0,
-        opens: 0,
-        clicks: 0,
-        bounces: 0,
-        unsubscribes: 0,
-      },
-    });
-
-    const savedCampaign = await campaign.save();
-
-    // Crear el email programado con referencia a la campaña
+    // Crear el email programado
     const scheduledEmail = new ScheduledEmail({
       subject,
       template,
@@ -636,7 +616,7 @@ exports.scheduleEmail = async (req, res) => {
       userId: account._id,
       scheduledFor,
       account: account._id,
-      campaignId: savedCampaign._id, // Agregar referencia a la campaña
+      campaignName, // Guardamos el nombre de la campaña para usarlo después
     });
 
     await scheduledEmail.save();
@@ -645,7 +625,6 @@ exports.scheduleEmail = async (req, res) => {
       success: true,
       message: "Email programado correctamente",
       scheduledEmail,
-      campaign: savedCampaign,
     });
   } catch (error) {
     console.error("Error al programar email:", error);
@@ -676,7 +655,6 @@ exports.getScheduledEmails = async (req, res) => {
   }
 };
 
-
 exports.previewPromotionEmails = async (req, res) => {
   try {
     const { promotionId } = req.body;
@@ -699,9 +677,7 @@ exports.previewPromotionEmails = async (req, res) => {
     const clients = await Client.find({ accountId: account._id });
 
     // Filtrar clientes que no tienen la promoción
-    const clientsNotInPromotion = clients.filter((client) =>
-      !client.addedPromotions.some((addedPromo) => addedPromo.promotion.toString() === promotionId)
-    );
+    const clientsNotInPromotion = clients.filter((client) => !client.addedPromotions.some((addedPromo) => addedPromo.promotion.toString() === promotionId));
 
     if (clientsNotInPromotion.length === 0) {
       return res.status(200).send({
