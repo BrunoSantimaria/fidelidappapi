@@ -1218,7 +1218,7 @@ const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
   try {
     const [visitMetrics, registrationMetrics] = await Promise.all([
       getDailyMetricsVisits(accountPromotionIds, startDate),
-      getDailyMetricsRegistrations(startDate),
+      getDailyMetricsRegistrations(accountPromotionIds,startDate),
     ]);
 
     // Combine the two results into a single structure
@@ -1276,11 +1276,16 @@ const getDailyMetricsVisits = async (accountPromotionIds, startDate) => {
   ]);
 };
 
-const getDailyMetricsRegistrations = async (startDate) => {
+const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
   return await Client.aggregate([
     {
       $addFields: {
         registrationDate: { $toDate: "$_id" }, // Extract the creation date from the Client ID
+      },
+    },
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
       },
     },
     {
