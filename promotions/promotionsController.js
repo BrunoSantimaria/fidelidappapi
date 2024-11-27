@@ -43,6 +43,8 @@ exports.createPromotion = async (req, res) => {
       systemType: req.body.systemType, // "points" o "visits"
       pointSystem: req.body.systemType === "points",
       rewards: req.body.promotionRequirements.rewards || [],
+      startDate: req.body.systemType === "visits" ? req.body.promotionRequirements.startDate : null,
+      endDate: req.body.systemType === "visits" ? req.body.promotionRequirements.endDate : null
     };
 
     // Agregar visitas requeridas solo si el sistema es de visitas
@@ -120,6 +122,12 @@ exports.getPromotions = async (req, res) => {
     const [promotions, metrics] = await Promise.all([
       // Consulta de promociones
       Promotion.find({ userID: user._id }),
+
+      //Atualizar status de promociones segun fecha de termino 
+      Promotion.updateMany(
+        { endDate: { $lt: new Date() } },
+        { $set: { status: "inactive" } }
+      ),
 
       // Consulta de métricas usando agregación
       Client.aggregate([
@@ -203,6 +211,14 @@ exports.getPromotionById = async (req, res) => {
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found" });
     }
+
+    // Check is promotion endDate is in the past and update the status
+    if (promotion.endDate && promotion.endDate < Date.now()) {
+      promotion.status = "inactive";
+      await promotion.save();
+    }
+    console.log(promotion.endDate)
+    console.log("Promotion status", promotion.status)
 
     const account = await Account.findOne({ owner: StrToObjectId(promotion.userID.toString()) });
 
@@ -1095,9 +1111,8 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${
-                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-              }" alt="FidelidApp Logo" height="100">
+              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+        }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1120,104 +1135,119 @@ exports.getDashboardMetrics = async (req, res) => {
   const startDate = moment().subtract(timePeriod, "days").startOf("day").toDate();
 
   try {
+    // Fetch the account
     const account = await Account.findOne({ userEmails: req.email }).populate("promotions");
 
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    console.log("Creating Report for Account:", account._id);
+    console.log("Creating Report for Account:", account.name);
 
     const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
-    console.log("Account Promotion IDs:", accountPromotionIds);
 
-    // Execute the three queries
-    const [dailyMetrics, globalMetrics, customerMetrics] = await Promise.all([
+    // Fetch metrics concurrently
+    const [dailyMetrics, globalMetrics = {}, customerMetrics] = await Promise.all([
       getDailyMetrics(account._id, accountPromotionIds, startDate),
-      getGlobalMetrics(account._id),
+      getGlobalMetrics(account._id, accountPromotionIds),
       getCustomerMetrics(account._id, accountPromotionIds),
     ]);
 
-    console.log("Daily Metrics:", dailyMetrics);
-    console.log("Global Metrics:", globalMetrics);
-
-    // Initialize variables for response
-    const dailyData = {};
-    const visitDataByClient = [];
-    const pointDataByClient = [];
-    let totalVisits = 0;
-    let totalPoints = 0;
-    let totalRedeemCount = 0;
+    console.log("Customer Metrics:", customerMetrics);
 
     // Prepare dailyData structure
+    const dailyData = {};
     for (let i = 0; i < timePeriod; i++) {
       const date = moment().subtract(i, "days").format("YYYY-MM-DD");
       dailyData[date] = { date, visits: 0, points: 0, registrations: 0 };
     }
 
-    // Populate dailyData with global metrics
-    globalMetrics.forEach(({ _id: date, registrations }) => {
+    // Ensure consistent date formats
+    dailyMetrics.forEach((metric) => {
+      metric.date = moment(metric.date).format("YYYY-MM-DD"); // Normalize date format
+    });
+
+    // Populate dailyData
+    dailyMetrics.forEach(({ date, visits, points, redeems, registrations }) => {
       if (dailyData[date]) {
+        dailyData[date].visits += visits;
+        dailyData[date].points += points;
+        dailyData[date].redeems += redeems;
         dailyData[date].registrations += registrations;
       }
     });
 
-    // Populate dailyData with daily metrics
-    dailyMetrics.forEach(({ _id: { date }, visits, points, redeems }) => {
-      if (dailyData[date]) {
-        dailyData[date].visits += visits;
-        dailyData[date].points += points;
-      }
-      totalVisits += visits;
-      totalPoints += points;
-      totalRedeemCount += redeems;
-    });
 
-    // Prepare customer-level metrics for client-specific data
-    customerMetrics.forEach(({ email, totalVisits, totalPoints, totalRedeems }) => {
-      visitDataByClient.push({
-        client: email,
-        visits: totalVisits,
-        points: totalPoints,
-        redeemCount: totalRedeems,
-      });
+    // Prepare customer metrics
+    const visitDataByClient = customerMetrics.map(({ email, totalVisits, totalPoints, totalRedeems }) => ({
+      client: email,
+      visits: totalVisits,
+      points: totalPoints,
+      redeemCount: totalRedeems,
+    })).sort((a, b) => b.visits - a.visits);
 
-      pointDataByClient.push({
-        client: email,
-        points: totalPoints,
-        redeemCount: totalRedeems,
-      });
-    });
+    const pointDataByClient = [...visitDataByClient].sort((a, b) => b.points - a.points);
 
-    // Sort dailyData and client-level data
-    const orderedDailyData = Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date));
-    visitDataByClient.sort((a, b) => b.visits - a.visits);
-    pointDataByClient.sort((a, b) => b.points - a.points);
+    // Extract metrics safely from the first element of the globalMetrics array
+    const globalMetricsData = globalMetrics[0] || {}; // Use the first element or an empty object
 
-    // Get total client count
-    const totalClients = await Client.countDocuments({ "addedAccounts.accountId": account._id });
-    const registeredClients = customerMetrics.length;
+    const totalClients = globalMetricsData.totalClients || 0;
+    const totalVisits = globalMetricsData.totalVisits || 0;
+    const totalPoints = globalMetricsData.totalPoints || 0;
+    const totalRedeemCount = globalMetricsData.totalRedeems || 0;
+
 
     // Final response
     res.status(200).json({
+      Name: account.name,
       totalClients,
-      registeredClients,
       totalVisits,
       totalPoints,
       totalRedeemCount,
       totalPromotions: accountPromotionIds.length,
       visitDataByClient,
       pointDataByClient,
-      dailyData: orderedDailyData,
+      dailyData: Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date)),
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error retrieving dashboard metrics:", error.message);
     res.status(500).json({ message: "Error retrieving dashboard metrics" });
   }
 };
 const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
+  try {
+    const [visitMetrics, registrationMetrics] = await Promise.all([
+      getDailyMetricsVisits(accountPromotionIds, startDate),
+      getDailyMetricsRegistrations(accountPromotionIds,startDate),
+    ]);
+
+    // Combine the two results into a single structure
+    const combinedMetrics = {};
+
+    // Add visits, points, and redeems to combinedMetrics
+    visitMetrics.forEach(({ _id: { date }, visits, points, redeems }) => {
+      combinedMetrics[date] = { date, visits, points, redeems, registrations: 0 };
+    });
+
+    // Add registrations to combinedMetrics
+    registrationMetrics.forEach(({ _id: { date }, registrations }) => {
+      if (!combinedMetrics[date]) {
+        combinedMetrics[date] = { date, visits: 0, points: 0, redeems: 0, registrations };
+      } else {
+        combinedMetrics[date].registrations = registrations;
+      }
+    });
+
+    // Convert to sorted array
+    return Object.values(combinedMetrics).sort((a, b) => new Date(a.date) - new Date(b.date));
+  } catch (error) {
+    console.error("Error retrieving daily metrics:", error);
+    throw error;
+  }
+};
+
+const getDailyMetricsVisits = async (accountPromotionIds, startDate) => {
   return await Client.aggregate([
-    { $match: { "addedAccounts.accountId": accountId } }, // Match by account
     { $unwind: "$addedpromotions" }, // Unwind promotions
     {
       $match: {
@@ -1227,55 +1257,113 @@ const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
     { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visit dates
     {
       $match: {
-        $or: [
-          { "addedpromotions.visitDates.date": { $gte: startDate } }, // Include visits in the range
-        ],
+        "addedpromotions.visitDates.date": { $gte: startDate }, // Include visits in the range
       },
     },
     {
       $group: {
         _id: {
           date: {
-            $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$addedpromotions.visitDates.date", { $toDate: "$_id" }] } },
+            $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" }, // Group by visit date
           },
-        }, // Group by date
-        visits: { $sum: { $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0] } }, // Sum visits
+        },
+        visits: { $sum: 1 }, // Count visits
         points: { $sum: "$addedpromotions.visitDates.pointsAdded" }, // Sum points
         redeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
-        registrations: {
-          $sum: {
-            $cond: [
-              { $gte: [{ $toDate: "$_id" }, startDate] }, // Check if registration date is in range
-              1,
-              0,
-            ],
-          },
-        }, // Sum registrations
       },
     },
     { $sort: { "_id.date": 1 } }, // Sort by date
   ]);
 };
 
-const getGlobalMetrics = async (accountId) => {
+const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
   return await Client.aggregate([
     {
+      $addFields: {
+        registrationDate: { $toDate: "$_id" }, // Extract the creation date from the Client ID
+      },
+    },
+    {
       $match: {
-        "addedAccounts.accountId": accountId,
+        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
+      },
+    },
+    {
+      $match: {
+        registrationDate: { $gte: startDate }, // Check if registration date is in range
       },
     },
     {
       $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$_id" } } }, // Group by day
+        _id: {
+          date: {
+            $dateToString: { format: "%Y-%m-%d", date: "$registrationDate" }, // Group by registration date
+          },
+        },
         registrations: { $sum: 1 }, // Count registrations
       },
     },
-    { $sort: { _id: 1 } }, // Sort by date
+    { $sort: { "_id.date": 1 } }, // Sort by date
   ]);
 };
+
+
+
+
+
+const getGlobalMetrics = async (accountId, accountPromotionIds) => {
+  return await Client.aggregate([
+    // Unwind the addedpromotions array to process individual promotions
+    {
+      $unwind: {
+        path: "$addedpromotions",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
+        "addedAccounts.accountId": accountId, // Ensure the account matches
+      },
+    },
+    // Group to calculate global metrics
+    {
+      $group: {
+        _id: "$_id", // Group by client to calculate per-client metrics
+        visitDatesCount: {
+          $sum: { $size: { $ifNull: ["$addedpromotions.visitDates", []] } }, // Count visitDates per promotion
+        },
+        totalPoints: { $sum: "$addedpromotions.pointsEarned" }, // Sum points earned
+        totalRedeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeem count
+      },
+    },
+    // Group again to calculate global metrics across all clients
+    {
+      $group: {
+        _id: null,
+        totalClients: { $sum: 1 }, // Count distinct clients
+        totalVisits: { $sum: "$visitDatesCount" }, // Sum visit counts
+        totalPoints: { $sum: "$totalPoints" }, // Sum total points across clients
+        totalRedeems: { $sum: "$totalRedeems" }, // Sum total redeems across clients
+      },
+    },
+    // Project to format the output
+    {
+      $project: {
+        _id: 0, // Exclude the _id field
+        totalClients: 1,
+        totalPoints: 1,
+        totalVisits: 1,
+        totalRedeems: 1,
+      },
+    },
+  ]);
+};
+
+
 const getCustomerMetrics = async (accountId, promotionIds) => {
-  return Client.aggregate([
-    { $match: { "addedAccounts.accountId": accountId } }, // Match clients by account
+  // Query for total visits
+  const visits = await Client.aggregate([
     { $unwind: "$addedpromotions" }, // Unwind promotions
     {
       $match: {
@@ -1288,23 +1376,79 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
         _id: "$_id", // Group by client
         email: { $first: "$email" }, // Preserve client email
         totalVisits: {
-          $sum: {
-            $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0], // Count visits
-          },
+          $sum: { $cond: [{ $ifNull: ["$addedpromotions.visitDates.date", false] }, 1, 0] }, // Count visits
         },
+      },
+    },
+  ]);
+
+  // Query for total points
+  const points = await Client.aggregate([
+    { $unwind: "$addedpromotions" }, // Unwind promotions
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: promotionIds }, // Filter by relevant promotions
+      },
+    },
+    { $unwind: { path: "$addedpromotions.visitDates", preserveNullAndEmptyArrays: true } }, // Unwind visitDates
+    {
+      $group: {
+        _id: "$_id", // Group by client
+        email: { $first: "$email" }, // Preserve client email
         totalPoints: {
           $sum: {
             $add: [
-              { $ifNull: ["$addedpromotions.pointsEarned", 0] }, // Sum pointsEarned
               { $ifNull: ["$addedpromotions.visitDates.pointsAdded", 0] }, // Sum visitDates.pointsAdded
             ],
           },
         },
+      },
+    },
+  ]);
+
+  // Query for total redeems
+  const redeems = await Client.aggregate([
+    { $unwind: "$addedpromotions" }, // Unwind promotions
+    {
+      $match: {
+        "addedpromotions.promotion": { $in: promotionIds }, // Filter by relevant promotions
+      },
+    },
+    {
+      $group: {
+        _id: "$_id", // Group by client
+        email: { $first: "$email" }, // Preserve client email
         totalRedeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
       },
     },
   ]);
+
+  // Merge results into a single array of customer metrics
+  const mergedMetrics = {};
+
+  // Merge visits
+  visits.forEach(({ _id, email, totalVisits }) => {
+    if (!mergedMetrics[_id]) mergedMetrics[_id] = { _id, email, totalVisits: 0, totalPoints: 0, totalRedeems: 0 };
+    mergedMetrics[_id].totalVisits = totalVisits;
+  });
+
+  // Merge points
+  points.forEach(({ _id, email, totalPoints }) => {
+    if (!mergedMetrics[_id]) mergedMetrics[_id] = { _id, email, totalVisits: 0, totalPoints: 0, totalRedeems: 0 };
+    mergedMetrics[_id].totalPoints = totalPoints;
+  });
+
+  // Merge redeems
+  redeems.forEach(({ _id, email, totalRedeems }) => {
+    if (!mergedMetrics[_id]) mergedMetrics[_id] = { _id, email, totalVisits: 0, totalPoints: 0, totalRedeems: 0 };
+    mergedMetrics[_id].totalRedeems = totalRedeems;
+  });
+
+  // Convert mergedMetrics object to an array
+  return Object.values(mergedMetrics);
 };
+
+
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
@@ -1600,3 +1744,5 @@ exports.getWeeklyVisits = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
+
+
