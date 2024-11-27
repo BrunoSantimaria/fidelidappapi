@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Start } = require("twilio/lib/twiml/VoiceResponse");
 
 const rewardSchema = new mongoose.Schema({
   points: { type: Number, required: true },
@@ -74,6 +75,17 @@ const promotionSchema = new mongoose.Schema(
     rewards: {
       type: [rewardSchema],
       default: [],
+    },
+    startDate: {
+      type: Date,
+    },
+    endDate: {
+      type: Date
+    },
+    status: {
+      type: String,
+      default: "active",
+      enum: ["active", "inactive"],
     },
   },
   { timestamps: true }
