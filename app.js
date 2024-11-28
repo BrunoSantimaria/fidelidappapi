@@ -96,6 +96,7 @@ const eventRoutes = require("./events/eventsRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const webhookRoutes = require("./routes/webhook.routes");
 const { scheduleEmail } = require("./emailSender/emailController");
+const campaignRoutes = require("./campaigns/campaignRoutes");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -110,6 +111,7 @@ app.use("/api/template/", templateRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/api/campaigns", campaignRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

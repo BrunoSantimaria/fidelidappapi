@@ -44,7 +44,7 @@ exports.createPromotion = async (req, res) => {
       pointSystem: req.body.systemType === "points",
       rewards: req.body.promotionRequirements.rewards || [],
       startDate: req.body.systemType === "visits" ? req.body.promotionRequirements.startDate : null,
-      endDate: req.body.systemType === "visits" ? req.body.promotionRequirements.endDate : null
+      endDate: req.body.systemType === "visits" ? req.body.promotionRequirements.endDate : null,
     };
 
     // Agregar visitas requeridas solo si el sistema es de visitas
@@ -123,11 +123,8 @@ exports.getPromotions = async (req, res) => {
       // Consulta de promociones
       Promotion.find({ userID: user._id }),
 
-      //Atualizar status de promociones segun fecha de termino 
-      Promotion.updateMany(
-        { endDate: { $lt: new Date() } },
-        { $set: { status: "inactive" } }
-      ),
+      //Atualizar status de promociones segun fecha de termino
+      Promotion.updateMany({ endDate: { $lt: new Date() } }, { $set: { status: "inactive" } }),
 
       // Consulta de métricas usando agregación
       Client.aggregate([
@@ -217,8 +214,8 @@ exports.getPromotionById = async (req, res) => {
       promotion.status = "inactive";
       await promotion.save();
     }
-    console.log(promotion.endDate)
-    console.log("Promotion status", promotion.status)
+    console.log(promotion.endDate);
+    console.log("Promotion status", promotion.status);
 
     const account = await Account.findOne({ owner: StrToObjectId(promotion.userID.toString()) });
 
@@ -481,7 +478,7 @@ exports.addClientToPromotion = async (req, res) => {
       clientId: client._id,
       promotionId: promotionId,
       clientEmail: clientEmail,
-      clientName: clientName || "Sin nombre",
+      clientName: clientName || "-",
       promotionTitle: existingPromotiondata.title,
       systemType: existingPromotiondata.systemType,
     });
@@ -1154,8 +1151,9 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-        }" alt="FidelidApp Logo" height="100">
+              <img src="${
+                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+              }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1220,14 +1218,15 @@ exports.getDashboardMetrics = async (req, res) => {
       }
     });
 
-
     // Prepare customer metrics
-    const visitDataByClient = customerMetrics.map(({ email, totalVisits, totalPoints, totalRedeems }) => ({
-      client: email,
-      visits: totalVisits,
-      points: totalPoints,
-      redeemCount: totalRedeems,
-    })).sort((a, b) => b.visits - a.visits);
+    const visitDataByClient = customerMetrics
+      .map(({ email, totalVisits, totalPoints, totalRedeems }) => ({
+        client: email,
+        visits: totalVisits,
+        points: totalPoints,
+        redeemCount: totalRedeems,
+      }))
+      .sort((a, b) => b.visits - a.visits);
 
     const pointDataByClient = [...visitDataByClient].sort((a, b) => b.points - a.points);
 
@@ -1238,7 +1237,6 @@ exports.getDashboardMetrics = async (req, res) => {
     const totalVisits = globalMetricsData.totalVisits || 0;
     const totalPoints = globalMetricsData.totalPoints || 0;
     const totalRedeemCount = globalMetricsData.totalRedeems || 0;
-
 
     // Final response
     res.status(200).json({
@@ -1350,10 +1348,6 @@ const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
   ]);
 };
 
-
-
-
-
 const getGlobalMetrics = async (accountId, accountPromotionIds) => {
   return await Client.aggregate([
     // Unwind the addedpromotions array to process individual promotions
@@ -1402,7 +1396,6 @@ const getGlobalMetrics = async (accountId, accountPromotionIds) => {
     },
   ]);
 };
-
 
 const getCustomerMetrics = async (accountId, promotionIds) => {
   // Query for total visits
@@ -1490,7 +1483,6 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
   // Convert mergedMetrics object to an array
   return Object.values(mergedMetrics);
 };
-
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
@@ -1787,5 +1779,3 @@ exports.getWeeklyVisits = async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
-
-

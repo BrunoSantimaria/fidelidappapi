@@ -12,9 +12,8 @@ const processScheduledEmails = async () => {
 
     for (const scheduledEmail of emailsToSend) {
       try {
-        // Preparar los datos en el formato que espera emailSenderEditor
         const mockRequest = {
-          email: scheduledEmail.account.userEmails[0], // El email del usuario de la cuenta
+          email: scheduledEmail.account.userEmails[0],
           body: {
             template: scheduledEmail.template,
             subject: scheduledEmail.subject,

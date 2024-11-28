@@ -10,4 +10,7 @@ router.post("/send", verifyToken, emailController.emailSenderEditor);
 router.post("/previewPromotionEmails", verifyToken, emailController.previewPromotionEmails);
 router.post("/schedule", verifyToken, emailController.scheduleEmail);
 router.get("/scheduled", verifyToken, emailController.getScheduledEmails);
+router.put("/scheduled/:id", verifyToken, emailController.updateScheduledEmail);
+router.delete("/scheduled/:id", verifyToken, emailController.deleteScheduledEmail);
+
 module.exports = router;
