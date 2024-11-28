@@ -521,13 +521,15 @@ exports.getClientPromotion = async (req, res) => {
 
   try {
     // Encuentra al cliente por su ID
-    const client = await Client.findById(clientId);
+    const client = await Client.findById(clientId).populate("addedpromotions.promotion");
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
 
+    console.log(client)
+
     // Encuentra la promoción específica del cliente usando el promotionId
-    const promotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+    const promotion = client.addedpromotions.find((promo) => promo.promotion._id.toString() === promotionId);
 
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found for this client" });
@@ -536,7 +538,7 @@ exports.getClientPromotion = async (req, res) => {
     const account = await Account.find({
       promotions: promotion.promotion,
     });
-    console.log("esto es account social media", promotion.promotion);
+
     const socialMedia = {
       facebook: account[0].socialMedia.facebook,
       instagram: account[0].socialMedia.instagram,
@@ -544,6 +546,8 @@ exports.getClientPromotion = async (req, res) => {
       whatsapp: account[0].socialMedia.whatsapp,
       website: account[0].socialMedia.website,
     };
+
+
     // Obtiene los detalles de la promoción desde la colección de promociones
     const promotionDetails = await Promotion.findById(promotionId);
     if (!promotionDetails) {
@@ -580,6 +584,44 @@ exports.getClientPromotion = async (req, res) => {
       promotionData = promotion.toObject(); // Si no es ni puntos ni visitas, simplemente devolvemos la promoción tal cual
     }
 
+    // Trae la lista de promociones que tiene el cliente en funcion de account[0].promotions
+    console.log("account promotions", account[0].promotions);
+
+    // Find the specific client with a matching clientId and promotions
+
+    const reducedClientPromotions = client.addedpromotions
+      .filter((clientPromo) => account[0].promotions.includes(clientPromo.promotion._id))
+      .map((promo) => {
+        const {
+          _id,
+          status,
+          actualVisits,
+          pointsEarned,
+          endDate,
+          systemType
+        } = promo;
+
+        const {
+          title,
+          visitsRequired
+        } = promo.promotion;
+
+        return {
+          id: _id,
+          status,
+          title,
+          actualVisits,
+          pointsEarned,
+          visitsRequired,
+          systemType,
+          endDate,
+        };
+      });
+
+
+
+    console.log("clientPromotions", reducedClientPromotions);
+
     // Respuesta final con los datos de la promoción, detalles y cliente
     const response = {
       promotion: promotionData,
@@ -591,6 +633,7 @@ exports.getClientPromotion = async (req, res) => {
         phoneNumber: client.phoneNumber,
       },
       socialMedia: socialMedia,
+    clientPromotions: reducedClientPromotions
     };
 
     res.status(200).json(response);
@@ -1218,7 +1261,7 @@ const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
   try {
     const [visitMetrics, registrationMetrics] = await Promise.all([
       getDailyMetricsVisits(accountPromotionIds, startDate),
-      getDailyMetricsRegistrations(accountPromotionIds,startDate),
+      getDailyMetricsRegistrations(accountPromotionIds, startDate),
     ]);
 
     // Combine the two results into a single structure
