@@ -10,6 +10,8 @@ const Campaign = require("../campaigns/Campaign.model");
 const ScheduledEmail = require("../models/ScheduledEmail");
 const sgMail = require("@sendgrid/mail");
 
+const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+
 async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit, campaignId) {
   let emailsSentCount = 0;
   let successfulSends = 0;
@@ -209,7 +211,68 @@ exports.emailSenderEditor = async (req, res) => {
           to: client.email,
           from: account.senderEmail || "contacto@fidelidapp.cl",
           subject: subject.replace(/{nombreCliente}/g, client.name || ""),
-          html: template.replace(/{nombreCliente}/g, client.name || ""),
+          html: `
+            ${template.replace(/{nombreCliente}/g, client.name || "")}
+            <div class="footer" style="text-align: center; font-family: Arial, sans-serif; color: #555;">
+              <img 
+                src="${account?.logo || logoUrl}" 
+                alt="FidelidApp Logo" 
+                style="width: 150px; height: auto; margin-bottom: 20px;">
+              
+              <div class="social-icons" style="display: flex; justify-content: center; gap: 15px; margin: 20px 0;">
+                ${
+                  account.socialMedia.instagram
+                    ? `
+                  <a href="${account.socialMedia.instagram}" target="_blank">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
+                      alt="Instagram" 
+                      style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.facebook
+                    ? `
+                  <a href="${account.socialMedia.facebook}" target="_blank">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
+                      alt="Facebook" 
+                      style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.whatsapp
+                    ? `
+                  <a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
+                      alt="WhatsApp" 
+                      style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.website
+                    ? `
+                  <a href="${account.socialMedia.website}" target="_blank">
+                    <img 
+                      src="https://www.svgrepo.com/show/453365/language.svg" 
+                      alt="Website" 
+                      style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+              </div>
+        
+              <p style="font-size: 12px; color: #999;">&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+            </div>
+          `,
           custom_args: {
             campaign_id: savedCampaign._id.toString(),
           },
@@ -282,8 +345,6 @@ exports.emailSenderEditor = async (req, res) => {
 
       // Asegurarse de tener las métricas actualizadas antes de enviar el correo
       const updatedCampaign = await Campaign.findById(savedCampaign._id);
-
-      const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
 
       const notificationEmail = {
         to: req.email,

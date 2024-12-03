@@ -5,6 +5,7 @@ const { emailSenderEditor } = require("../emailSender/emailController");
 const processScheduledEmails = async () => {
   console.log(`[${new Date().toISOString()}] Iniciando verificación de emails programados...`);
   try {
+    // Buscar emails pendientes
     const emailsToSend = await ScheduledEmail.find({
       status: "pending",
       scheduledFor: { $lte: new Date() },
@@ -12,6 +13,10 @@ const processScheduledEmails = async () => {
 
     for (const scheduledEmail of emailsToSend) {
       try {
+        // Marcar el email como "processing"
+        scheduledEmail.status = "processing";
+        await scheduledEmail.save();
+
         const mockRequest = {
           email: scheduledEmail.account.userEmails[0],
           body: {
@@ -41,15 +46,11 @@ const processScheduledEmails = async () => {
         // Ejecutar emailSenderEditor con los datos preparados
         await emailSenderEditor(mockRequest, mockResponse);
 
-        // Si llegamos aquí, el envío fue exitoso
+        // Si el envío fue exitoso
         if (mockResponse.statusCode === 200) {
-          // Actualizar el email programado
           scheduledEmail.status = "sent";
           scheduledEmail.sentAt = new Date();
           scheduledEmail.campaignId = mockResponse.data.campaignId;
-          await scheduledEmail.save();
-
-          console.log(`[${new Date().toISOString()}] Email programado enviado exitosamente - ID: ${scheduledEmail._id}`);
         } else {
           throw new Error(`Error en el envío: ${JSON.stringify(mockResponse.data)}`);
         }
@@ -57,6 +58,8 @@ const processScheduledEmails = async () => {
         console.error(`[${new Date().toISOString()}] Error al procesar email programado ${scheduledEmail._id}:`, error);
         scheduledEmail.status = "failed";
         scheduledEmail.error = error.message;
+      } finally {
+        // Guardar el estado final del email
         await scheduledEmail.save();
       }
     }

@@ -36,7 +36,7 @@ const scheduledEmailSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "sent", "failed"],
+    enum: ["pending", "processing", "sent", "failed"], // Agregado "processing"
     default: "pending",
   },
   sentAt: {

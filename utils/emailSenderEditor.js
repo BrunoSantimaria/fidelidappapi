@@ -45,7 +45,9 @@ const sendMarketingEmailEditor = async ({ to, subject, template, from, campaignI
         senderEmail = account.senderEmail;
       }
     }
-
+    const { socialMedia } = account;
+    console.log(socialMedia);
+    console.log(account);
     const msg = {
       to,
       from: {
