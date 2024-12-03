@@ -183,6 +183,8 @@ exports.emailSenderEditor = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
+    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+
     const { template, subject, clients } = req.body;
 
     // Crear campaña inicial
@@ -359,8 +361,6 @@ exports.emailSenderEditor = async (req, res) => {
 
       // Asegurarse de tener las métricas actualizadas antes de enviar el correo
       const updatedCampaign = await Campaign.findById(savedCampaign._id);
-
-      const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
 
       const notificationEmail = {
         to: req.email,
