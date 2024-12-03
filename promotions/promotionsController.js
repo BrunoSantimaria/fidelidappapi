@@ -466,7 +466,7 @@ exports.addClientToPromotion = async (req, res) => {
 const setClientIdCookie = async (res, clientId, promotionId) => {
   // Establecer la cookie para clientId
   res.cookie("clientId", clientId, {
-    httpOnly: true, // Protección contra ataques XSS
+    httpOnly: false, // Protección contra ataques XSS
     secure: true, // Solo se enviará si la conexión es segura (https)
     sameSite: "None", // Necesario para cookies de terceros (cross-site)
     domain: ".fidelidapp.cl", // Asegúrate de que el dominio sea accesible desde el subdominio
