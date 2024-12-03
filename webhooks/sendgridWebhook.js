@@ -8,14 +8,18 @@ exports.handleWebhook = async (req, res) => {
       const fullMessageId = event.sg_message_id;
       const baseMessageId = fullMessageId.split(".")[0];
 
+      // Buscar campaña existente por el ID de mensaje base
       const campaign = await Campaign.findOne({
         $or: [{ sendgridMessageId: baseMessageId }, { sendgridMessageIds: baseMessageId }],
       }).populate("accountId");
 
+      // Si no se encuentra la campaña, continuar con el siguiente evento
       if (!campaign) {
+        console.log(`Campaña no encontrada para el mensaje ID: ${baseMessageId}`);
         continue;
       }
 
+      // Procesar eventos específicos
       try {
         switch (event.event.toLowerCase()) {
           case "processed":
@@ -30,7 +34,6 @@ exports.handleWebhook = async (req, res) => {
             break;
           case "delivered":
             campaign.metrics.delivered += 1;
-
             break;
           case "bounce":
           case "dropped":
@@ -64,21 +67,25 @@ exports.handleWebhook = async (req, res) => {
             console.log(`Evento no manejado: ${event.event}`);
         }
 
+        // Calcular el total de procesados
         const totalProcessed = campaign.metrics.delivered + campaign.metrics.bounces + campaign.metrics.blocked + campaign.metrics.spam;
 
+        // Si todos los mensajes han sido procesados, marcar la campaña como completada
         if (totalProcessed === campaign.metrics.totalSent) {
           campaign.status = "completed";
-          await campaign.accountId.save();
+          await campaign.accountId.save(); // Guardar cuenta también si corresponde
           console.log(`Campaña ${campaign._id} completada:`, campaign.metrics);
         }
 
+        // Guardar las métricas actualizadas
         await campaign.save();
         console.log(`Métricas actualizadas para campaña ${campaign._id}:`, campaign.metrics);
       } catch (error) {
-        console.error(`Error procesando evento:`, error);
+        console.error(`Error procesando evento para campaña ${campaign._id}:`, error);
       }
     }
 
+    // Responder con un OK si todo sale bien
     res.status(200).send("OK");
   } catch (error) {
     console.error("Error procesando webhook:", error);
