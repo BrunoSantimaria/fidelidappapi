@@ -463,8 +463,10 @@ exports.addClientToPromotion = async (req, res) => {
   }
 };
 
-const setClientIdCookie = async (res, clientId) => {
-  res.cookie("clientId", clientId, {
+const setClientIdCookie = async (res, clientId, promotionId) => {
+  const cookieValue = JSON.stringify({ clientId, promotionId });
+
+  res.cookie("clientData", cookieValue, {
     httpOnly: false,
     secure: true,
     sameSite: "None",
@@ -473,7 +475,6 @@ const setClientIdCookie = async (res, clientId) => {
     expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000),
   });
 };
-
 exports.getClientPromotion = async (req, res) => {
   const clientId = req.params.cid;
   const promotionId = req.params.pid;
