@@ -10,6 +10,8 @@ const Campaign = require("../campaigns/Campaign.model");
 const ScheduledEmail = require("../models/ScheduledEmail");
 const sgMail = require("@sendgrid/mail");
 
+const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+
 async function sendEmailsInBatches(clients, template, subject, account, emailsSentLast30Days, emailLimit, campaignId) {
   let emailsSentCount = 0;
   let successfulSends = 0;
@@ -218,9 +220,7 @@ exports.emailSenderEditor = async (req, res) => {
                   account.socialMedia.instagram
                     ? `
                   <a href="${account.socialMedia.instagram}" target="_blank">
-                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
-                         alt="Instagram" 
-                         style="width: 24px; height: 24px;">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" alt="Instagram" style="width: 24px; height: 24px;">
                   </a>
                 `
                     : ""
@@ -229,9 +229,7 @@ exports.emailSenderEditor = async (req, res) => {
                   account.socialMedia.facebook
                     ? `
                   <a href="${account.socialMedia.facebook}" target="_blank">
-                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
-                         alt="Facebook" 
-                         style="width: 24px; height: 24px;">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" alt="Facebook" style="width: 24px; height: 24px;">
                   </a>
                 `
                     : ""
@@ -240,9 +238,7 @@ exports.emailSenderEditor = async (req, res) => {
                   account.socialMedia.whatsapp
                     ? `
                   <a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank">
-                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
-                         alt="WhatsApp" 
-                         style="width: 24px; height: 24px;">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" alt="WhatsApp" style="width: 24px; height: 24px;">
                   </a>
                 `
                     : ""
@@ -251,9 +247,7 @@ exports.emailSenderEditor = async (req, res) => {
                   account.socialMedia.website
                     ? `
                   <a href="${account.socialMedia.website}" target="_blank">
-                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/internetexplorer.svg" 
-                         alt="Website" 
-                         style="width: 24px; height: 24px;">
+                    <img src="https://www.svgrepo.com/show/453365/language.svg" alt="Website" style="width: 24px; height: 24px;">
                   </a>
                 `
                     : ""
@@ -334,8 +328,6 @@ exports.emailSenderEditor = async (req, res) => {
 
       // Asegurarse de tener las métricas actualizadas antes de enviar el correo
       const updatedCampaign = await Campaign.findById(savedCampaign._id);
-
-      const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
 
       const notificationEmail = {
         to: req.email,
