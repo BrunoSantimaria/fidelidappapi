@@ -8,18 +8,30 @@ exports.handleWebhook = async (req, res) => {
       const fullMessageId = event.sg_message_id;
       const baseMessageId = fullMessageId.split(".")[0];
 
-      // Buscar campaña existente por el ID de mensaje base
-      const campaign = await Campaign.findOne({
-        $or: [{ sendgridMessageId: baseMessageId }, { sendgridMessageIds: baseMessageId }],
+      // Buscar campaña existente por nombre y asunto, o por ID de mensaje base
+      let campaign = await Campaign.findOne({
+        $or: [{ sendgridMessageId: baseMessageId }, { sendgridMessageIds: baseMessageId }, { name: event.campaign_name, subject: event.campaign_subject }],
       }).populate("accountId");
 
-      // Si no se encuentra la campaña, continuar con el siguiente evento
+      // Si no se encuentra la campaña, crear una nueva campaña
       if (!campaign) {
-        console.log(`Campaña no encontrada para el mensaje ID: ${baseMessageId}`);
-        continue;
+        campaign = new Campaign({
+          name: event.campaign_name,
+          subject: event.campaign_subject,
+          sendgridMessageId: baseMessageId,
+          sendgridMessageIds: [baseMessageId],
+          status: "in_progress",
+          metrics: { processed: 0, deferred: 0, delivered: 0, bounces: 0, blocked: 0, spam: 0, opens: 0, clicks: 0, unsubscribes: 0 },
+          accountId: event.accountId,
+          startDate: new Date(),
+        });
+      } else {
+        // Si la campaña existe, actualizar el array de sendgridMessageIds
+        if (!campaign.sendgridMessageIds.includes(baseMessageId)) {
+          campaign.sendgridMessageIds.push(baseMessageId);
+        }
       }
 
-      // Procesar eventos específicos
       try {
         switch (event.event.toLowerCase()) {
           case "processed":
