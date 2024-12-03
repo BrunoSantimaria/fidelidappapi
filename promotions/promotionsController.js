@@ -3,6 +3,7 @@ const Promotion = require("./promotions.model");
 const Client = require("./client.model");
 const User = require("../auth/User.model");
 const Account = require("../accounts/Account.model");
+const Campaign = require("../campaigns/Campaign.model");
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const qr = require("qrcode");
@@ -630,7 +631,7 @@ exports.getClientPromotion = async (req, res) => {
         phoneNumber: client.phoneNumber,
       },
       socialMedia: socialMedia,
-    clientPromotions: reducedClientPromotions
+      clientPromotions: reducedClientPromotions
     };
 
     res.status(200).json(response);
@@ -1151,9 +1152,8 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${
-                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-              }" alt="FidelidApp Logo" height="100">
+              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+        }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1172,7 +1172,7 @@ exports.redeemPromotionPoints = async (req, res) => {
 };
 
 exports.getDashboardMetrics = async (req, res) => {
-  const timePeriod = req.body.timePeriod || 7;
+  const timePeriod = req.body.timePeriod || 14;
   const startDate = moment().subtract(timePeriod, "days").startOf("day").toDate();
 
   try {
@@ -1188,33 +1188,61 @@ exports.getDashboardMetrics = async (req, res) => {
     const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
 
     // Fetch metrics concurrently
-    const [dailyMetrics, globalMetrics = {}, customerMetrics] = await Promise.all([
+    const [
+      dailyMetrics,
+      globalMetrics = {},
+      customerMetrics,
+      globalCampaignMetrics,
+      dailyCampaignMetrics,
+      campaignDetails,
+    ] = await Promise.all([
       getDailyMetrics(account._id, accountPromotionIds, startDate),
       getGlobalMetrics(account._id, accountPromotionIds),
       getCustomerMetrics(account._id, accountPromotionIds),
+      getGlobalCampaignMetrics(account._id),
+      getDailyCampaignMetrics(account._id, startDate),
+      getCampaignDetails(account._id),
     ]);
 
+    console.log("Global Metrics:", globalMetrics);
+    console.log("Daily Metrics:", dailyMetrics);
     console.log("Customer Metrics:", customerMetrics);
+    console.log("Global Campaign Metrics:", globalCampaignMetrics);
+    console.log("Daily Campaign Metrics:", dailyCampaignMetrics);
+    console.log("Campaign Details:", campaignDetails);
 
     // Prepare dailyData structure
     const dailyData = {};
     for (let i = 0; i < timePeriod; i++) {
       const date = moment().subtract(i, "days").format("YYYY-MM-DD");
-      dailyData[date] = { date, visits: 0, points: 0, registrations: 0 };
+      dailyData[date] = {
+        date,
+        visits: 0,
+        points: 0,
+        registrations: 0,
+        emailSent: 0,
+        emailOpened: 0,
+        emailClicked: 0,
+      };
     }
 
-    // Ensure consistent date formats
+    // Normalize and populate `dailyMetrics` data
     dailyMetrics.forEach((metric) => {
-      metric.date = moment(metric.date).format("YYYY-MM-DD"); // Normalize date format
+      const formattedDate = moment(metric.date).format("YYYY-MM-DD");
+      if (dailyData[formattedDate]) {
+        dailyData[formattedDate].visits += metric.visits || 0;
+        dailyData[formattedDate].points += metric.points || 0;
+        dailyData[formattedDate].registrations += metric.registrations || 0;
+      }
     });
 
-    // Populate dailyData
-    dailyMetrics.forEach(({ date, visits, points, redeems, registrations }) => {
-      if (dailyData[date]) {
-        dailyData[date].visits += visits;
-        dailyData[date].points += points;
-        dailyData[date].redeems += redeems;
-        dailyData[date].registrations += registrations;
+    // Normalize and populate `dailyCampaignMetrics` data
+    dailyCampaignMetrics.forEach((metric) => {
+      const formattedDate = moment(metric.date).format("YYYY-MM-DD");
+      if (dailyData[formattedDate]) {
+        dailyData[formattedDate].emailSent += metric.dailyEmailsSent || 0;
+        dailyData[formattedDate].emailOpened += metric.dailyOpens || 0;
+        dailyData[formattedDate].emailClicked += metric.dailyClicks || 0;
       }
     });
 
@@ -1232,29 +1260,64 @@ exports.getDashboardMetrics = async (req, res) => {
 
     // Extract metrics safely from the first element of the globalMetrics array
     const globalMetricsData = globalMetrics[0] || {}; // Use the first element or an empty object
-
     const totalClients = globalMetricsData.totalClients || 0;
     const totalVisits = globalMetricsData.totalVisits || 0;
     const totalPoints = globalMetricsData.totalPoints || 0;
     const totalRedeemCount = globalMetricsData.totalRedeems || 0;
 
+    // Calculate total accountClients by checking Client model added counts
+    const accountClients =
+      (await Client.countDocuments({
+        "addedAccounts.accountId": account._id,
+      })) || 0;
+
+    // Calculate fidelidapp index, number of returning clients over the total clients
+    const findex =
+      totalClients > 0
+        ? ((100 * visitDataByClient.filter((client) => client.visits > 1).length) / totalClients).toFixed(2)
+        : 0;
+
+    // Extract global email campaign metrics
+    const globalCampaignMetricsData = globalCampaignMetrics[0] || {}; // Use the first element or an empty object
+    const totalEmailsSent = globalCampaignMetricsData.totalEmailsSent || 0;
+    const totalEmailOpens = globalCampaignMetricsData.totalOpens || 0;
+    const totalEmailClicks = globalCampaignMetricsData.totalClicks || 0;
+    const totalCampaigns = globalCampaignMetricsData.totalCampaigns || 0;
+
+    // Format campaign details
+    const formattedCampaignDetails = campaignDetails.map((campaign) => ({
+      name: campaign.name,
+      status: campaign.status,
+      totalSent: campaign.totalSent,
+      totalOpens: campaign.totalOpens,
+      totalClicks: campaign.totalClicks,
+    }));
+
     // Final response
     res.status(200).json({
       Name: account.name,
+      findex,
+      accountClients,
+      totalCampaigns,
+      totalPromotions: accountPromotionIds.length,
       totalClients,
       totalVisits,
       totalPoints,
       totalRedeemCount,
-      totalPromotions: accountPromotionIds.length,
+      totalEmailsSent,
+      totalEmailOpens,
+      totalEmailClicks,
+      dailyData: Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date)),
       visitDataByClient,
       pointDataByClient,
-      dailyData: Object.values(dailyData).sort((a, b) => new Date(a.date) - new Date(b.date)),
+      campaigns: formattedCampaignDetails,
     });
   } catch (error) {
     console.error("Error retrieving dashboard metrics:", error.message);
     res.status(500).json({ message: "Error retrieving dashboard metrics" });
   }
 };
+
 const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
   try {
     const [visitMetrics, registrationMetrics] = await Promise.all([
@@ -1483,6 +1546,90 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
   // Convert mergedMetrics object to an array
   return Object.values(mergedMetrics);
 };
+
+const getGlobalCampaignMetrics = async (accountId) => {
+  return await Campaign.aggregate([
+    {
+      $match: { accountId }, // Filter campaigns by accountId
+    },
+    {
+      $group: {
+        _id: null,
+        totalEmailsSent: { $sum: "$metrics.totalSent" },
+        totalOpens: { $sum: "$metrics.opens" },
+        totalClicks: { $sum: "$metrics.clicks" },
+        totalCampaigns: { $sum: 1 }, // Count the total number of campaigns
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        totalEmailsSent: 1,
+        totalOpens: 1,
+        totalClicks: 1,
+        totalCampaigns: 1, // Include totalCampaigns in the projection
+      },
+    },
+  ]);
+};
+
+
+const getDailyCampaignMetrics = async (accountId, startDate) => {
+  return await Campaign.aggregate([
+    {
+      $match: {
+        accountId,
+        startDate: { $gte: startDate }, // Filter campaigns by startDate
+      },
+    },
+    {
+      $project: {
+        date: { $dateToString: { format: "%Y-%m-%d", date: "$startDate" } }, // Format date
+        metrics: 1,
+      },
+    },
+    {
+      $group: {
+        _id: "$date", // Group by date
+        dailyEmailsSent: { $sum: "$metrics.totalSent" },
+        dailyOpens: { $sum: "$metrics.opens" },
+        dailyClicks: { $sum: "$metrics.clicks" },
+      },
+    },
+    {
+      $sort: { _id: 1 }, // Sort by date
+    },
+    {
+      $project: {
+        date: "$_id", // Rename _id to date for readability
+        dailyEmailsSent: 1,
+        dailyOpens: 1,
+        dailyClicks: 1,
+      },
+    },
+  ]);
+};
+
+
+
+
+const getCampaignDetails = async (accountId) => {
+  return await Campaign.aggregate([
+    {
+      $match: { accountId }, // Filter campaigns by accountId
+    },
+    {
+      $project: {
+        name: 1,
+        status: 1,
+        totalSent: "$metrics.totalSent",
+        totalOpens: "$metrics.opens",
+        totalClicks: "$metrics.clicks",
+      },
+    },
+  ]);
+};
+
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
