@@ -72,18 +72,31 @@ campaignSchema.pre("save", function (next) {
 });
 
 // Método estático para actualizar o crear campaña
+// Método estático para actualizar o crear campaña
 campaignSchema.statics.findOrCreateBySendgridId = async function (sendgridMessageId, campaignData) {
   try {
-    let campaign = await this.findOne({ sendgridMessageId });
+    // Intentar encontrar una campaña con el sendgridMessageId, o por nombre y asunto
+    let campaign = await this.findOne({
+      $or: [{ sendgridMessageId }, { sendgridMessageIds: { $in: [sendgridMessageId] } }, { name: campaignData.name, subject: campaignData.subject }],
+    });
 
+    // Si no existe, se crea una nueva campaña
     if (!campaign) {
       campaign = new this({
         ...campaignData,
         sendgridMessageId,
+        sendgridMessageIds: [sendgridMessageId],
         status: "in_progress",
       });
+    } else {
+      // Si la campaña existe, se agregan los nuevos sendgridMessageId al array
+      if (!campaign.sendgridMessageIds.includes(sendgridMessageId)) {
+        campaign.sendgridMessageIds.push(sendgridMessageId);
+      }
     }
 
+    // Guardar la campaña, sea nueva o actualizada
+    await campaign.save();
     return campaign;
   } catch (error) {
     console.error("Error en findOrCreateBySendgridId:", error);
