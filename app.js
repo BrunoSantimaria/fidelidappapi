@@ -56,12 +56,18 @@ app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
-  origin: ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173"],
+  origin: (origin, callback) => {
+    const allowedOrigins = ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173"];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
-
 // Configuración CORS general
 app.use((req, res, next) => {
   // Excepción para webhooks de Sendgrid

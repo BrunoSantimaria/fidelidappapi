@@ -500,16 +500,17 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 const setClientIdCookie = async (res, clientId, promotionId) => {
-  // **Establecer la cookie para clientId**
+  // Establecer la cookie para clientId en producción
   res.cookie("clientId", clientId, {
-    path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
-    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
-
-    //Comentar los siguientes parametros en DEV para que funcione
-    sameSite: "None", // Previene el envío de cookies en solicitudes de terceros
-    secure: true, // Solo en HTTPS
-    domain: "fidelidapp.cl", // Replace with your domain
+    path: `/promotion/${promotionId}`, // Mantén el path si aplica solo a promociones específicas
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años
+    sameSite: "None", // Permitir cookies en contextos de terceros, si aplica
+    secure: true, // Requiere HTTPS en producción
+    domain: "fidelidapp.cl", // Cambia al dominio de producción
   });
+
+  // Console log para depuración
+  console.log(`Cookie set for clientId: ${clientId}, promotionId: ${promotionId}`);
 };
 
 exports.getClientPromotion = async (req, res) => {
