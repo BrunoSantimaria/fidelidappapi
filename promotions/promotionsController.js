@@ -387,8 +387,6 @@ exports.getPromotionById = async (req, res) => {
 
 exports.addClientToPromotion = async (req, res) => {
   const { promotionId, clientEmail, clientName, clientPhone } = req.body;
-  console.log("AddClientToPromotion");
-  console.log(req.body);
 
   if (!promotionId || !clientEmail) {
     return res.status(400).json({ error: "Missing promotion ID or client email" });
@@ -409,70 +407,39 @@ exports.addClientToPromotion = async (req, res) => {
 
     if (!client) {
       client = new Client({ email: clientEmail, name: clientName, phoneNumber: clientPhone });
-      console.log("Client created:", client);
-    }
-
-    const existingAccount = client.addedAccounts.find((acc) => acc.accountId.toString() === account._id.toString());
-
-    if (!existingAccount) {
-      client.addedAccounts.push({ accountId: account._id });
     }
 
     const existingPromotion = client.addedpromotions.find((promotion) => promotion.promotion.toString() === promotionId);
 
     if (existingPromotion) {
-      // **Establecer la cookie para clientId**
+      // **Establecer la cookie para clientId, incluso si ya está registrado**
       setClientIdCookie(res, client._id.toString(), promotionId);
       return res.status(400).json({ error: "Client already has this promotion" });
     }
 
-    // Añadir la promoción a addedpromotions y asegurarse de incluir systemType
+    // Si no está registrado en la promoción, se añade la promoción
     const newPromotion = {
       promotion: promotionId,
       addedDate: new Date(),
-      endDate: new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000), // Duración en milisegundos
+      endDate: new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000),
       status: "Active",
-      systemType: existingPromotiondata.systemType, // Agregar el systemType aquí
+      systemType: existingPromotiondata.systemType,
     };
 
     client.addedpromotions.push(newPromotion);
 
-    // Aquí verificamos qué tipo de sistema de promoción es
+    // Aquí verificamos el tipo de sistema de promoción
     if (existingPromotiondata.systemType === "visits") {
-      // Si la promoción es basada en visitas
-      client.addedpromotions[client.addedpromotions.length - 1].actualVisits = 0; // Inicializar el contador de visitas
+      client.addedpromotions[client.addedpromotions.length - 1].actualVisits = 0;
     } else if (existingPromotiondata.systemType === "points") {
-      // Si la promoción es basada en puntos
-      client.addedpromotions[client.addedpromotions.length - 1].pointsEarned = 0; // Inicializar los puntos ganados
+      client.addedpromotions[client.addedpromotions.length - 1].pointsEarned = 0;
     }
 
-    const accountClientExists = account.clients.find((accClient) => accClient.email === clientEmail);
-
-    if (!accountClientExists) {
-      account.clients.push({
-        id: client._id,
-        name: clientName,
-        email: clientEmail,
-        phoneNumber: clientPhone,
-        addedPromotions: [
-          {
-            promotion: promotionId,
-            addedDate: new Date(),
-            endDate: new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000), // Duración
-            systemType: existingPromotiondata.systemType, // Agregar el systemType aquí también
-          },
-        ],
-      });
-    }
-
-    await sendEmailWithQRCode(clientEmail, existingPromotiondata, client._id, existingPromotiondata._id, existingPromotiondata.title);
     await client.save();
-    await account.save();
 
-    // **Establecer la cookie para clientId**
+    // **Establecer la cookie para clientId aquí también**
     setClientIdCookie(res, client._id.toString(), promotionId);
 
-    // Crear el registro de la promoción
     const promotionRegistration = new PromotionRegistration({
       accountId: account._id,
       clientId: client._id,
@@ -483,10 +450,7 @@ exports.addClientToPromotion = async (req, res) => {
       systemType: existingPromotiondata.systemType,
     });
 
-    // Guardar el registro
     await promotionRegistration.save();
-
-    log.logAction(clientEmail, "addclient", `Client ${clientEmail} added to promotion ${existingPromotiondata.title} (Account: ${account._id})`);
 
     res.status(201).json({
       message: "Client added to promotion successfully",
@@ -500,17 +464,15 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 const setClientIdCookie = async (res, clientId, promotionId) => {
-  // Establecer la cookie para clientId en producción
+  // Establecer la cookie para clientId
   res.cookie("clientId", clientId, {
-    path: `/promotion/${promotionId}`, // Mantén el path si aplica solo a promociones específicas
-    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años
-    sameSite: "None", // Permitir cookies en contextos de terceros, si aplica
-    secure: true, // Requiere HTTPS en producción
-    domain: "fidelidapp.cl", // Cambia al dominio de producción
+    httpOnly: true, // Protección contra ataques XSS
+    secure: true, // Solo se enviará si la conexión es segura (https)
+    sameSite: "None", // Necesario para cookies de terceros (cross-site)
+    domain: ".fidelidapp.cl", // Asegúrate de que el dominio sea accesible desde el subdominio
+    path: "/", // Asegúrate de que la cookie esté disponible en todo el sitio
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // Expiración a largo plazo (10 años)
   });
-
-  // Console log para depuración
-  console.log(`Cookie set for clientId: ${clientId}, promotionId: ${promotionId}`);
 };
 
 exports.getClientPromotion = async (req, res) => {
