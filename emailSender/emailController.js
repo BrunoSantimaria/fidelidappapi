@@ -209,7 +209,59 @@ exports.emailSenderEditor = async (req, res) => {
           to: client.email,
           from: account.senderEmail || "contacto@fidelidapp.cl",
           subject: subject.replace(/{nombreCliente}/g, client.name || ""),
-          html: template.replace(/{nombreCliente}/g, client.name || ""),
+          html: `
+            ${template.replace(/{nombreCliente}/g, client.name || "")}
+            <div class="footer">
+              <img src="${logoUrl}" alt="FidelidApp Logo" class="logo">
+              <div class="social-icons">
+                ${
+                  account.socialMedia.instagram
+                    ? `
+                  <a href="${account.socialMedia.instagram}" target="_blank">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
+                         alt="Instagram" 
+                         style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.facebook
+                    ? `
+                  <a href="${account.socialMedia.facebook}" target="_blank">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
+                         alt="Facebook" 
+                         style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.whatsapp
+                    ? `
+                  <a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
+                         alt="WhatsApp" 
+                         style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+                ${
+                  account.socialMedia.website
+                    ? `
+                  <a href="${account.socialMedia.website}" target="_blank">
+                    <img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/internetexplorer.svg" 
+                         alt="Website" 
+                         style="width: 24px; height: 24px;">
+                  </a>
+                `
+                    : ""
+                }
+              </div>
+              <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+            </div>
+          `,
           custom_args: {
             campaign_id: savedCampaign._id.toString(),
           },

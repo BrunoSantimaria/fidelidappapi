@@ -79,12 +79,12 @@ app.use((req, res, next) => {
 });
 
 // Configurar OPTIONS para todas las rutas excepto webhooks
-//app.options("*", (req, res, next) => {
-//if (req.path === "/api/webhooks/sendgrid") {
-//return next();
-//}
-// cors(corsOptions)(req, res, next);
-//});
+app.options("*", (req, res, next) => {
+  if (req.path === "/api/webhooks/sendgrid") {
+    return next();
+  }
+  cors(corsOptions)(req, res, next);
+});
 
 // Routes
 const authRoutes = require("./auth/authRoutes");
