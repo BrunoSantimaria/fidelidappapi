@@ -463,15 +463,14 @@ exports.addClientToPromotion = async (req, res) => {
   }
 };
 
-const setClientIdCookie = async (res, clientId, promotionId) => {
-  // Establecer la cookie para clientId
+const setClientIdCookie = async (res, clientId) => {
   res.cookie("clientId", clientId, {
-    httpOnly: false, // Protección contra ataques XSS
-    secure: true, // Solo se enviará si la conexión es segura (https)
-    sameSite: "None", // Necesario para cookies de terceros (cross-site)
-    domain: ".fidelidapp.cl", // Asegúrate de que el dominio sea accesible desde el subdominio
-    path: "/", // Asegúrate de que la cookie esté disponible en todo el sitio
-    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // Expiración a largo plazo (10 años)
+    httpOnly: false,
+    secure: true,
+    sameSite: "None",
+    domain: ".fidelidapp.cl",
+    path: "/",
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000),
   });
 };
 

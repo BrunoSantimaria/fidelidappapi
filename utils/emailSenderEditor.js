@@ -45,9 +45,7 @@ const sendMarketingEmailEditor = async ({ to, subject, template, from, campaignI
         senderEmail = account.senderEmail;
       }
     }
-    const { socialMedia } = account;
-    console.log(socialMedia);
-    console.log(account);
+
     const msg = {
       to,
       from: {
@@ -55,37 +53,23 @@ const sendMarketingEmailEditor = async ({ to, subject, template, from, campaignI
         name: account?.senderName || "FidelidApp",
       },
       subject,
-      html:
-        template +
-        trackingPixel +
-        `
-        <div style="margin-top: 20px; text-align: center;">
-          <p style="font-size: 12px; color: #666; margin: 0;">
-            <a href="${process.env.API_URL}/view/${campaignId}" style="color: #666; text-decoration: underline;">Ver en navegador</a>
-            <br><br>
-            <a href="{{{unsubscribe}}}" style="color: #666; text-decoration: underline;">Cancelar suscripción</a> | 
-            <a href="{{{asm_preferences_raw_url}}}" style="color: #666; text-decoration: underline;">Administrar preferencias de correo</a>
-          </p>
-        </div>`,
+      html: template + trackingPixel,
+
       tracking_settings: {
         click_tracking: { enable: true },
         open_tracking: { enable: true },
         subscription_tracking: {
           enable: true,
-          substitution_tag: "{{{unsubscribe}}}",
-          text: "Cancelar suscripción",
-          html: "<p style='text-align: center;'>Cancelar suscripción</p>",
-          landing: "Preferencias de correo",
-          replace: "Cancelar suscripción",
+          text: "Si no deseas recibir más correos, haz clic aquí para cancelar tu suscripción.",
+          html: `<p style="text-align: center; font-size: 12px; color: #666;">Si no deseas recibir más correos, haz clic <a href="{{{unsubscribe}}}" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.</p>`,
         },
       },
+
       custom_args: {
         campaign_id: campaignId,
       },
-      asm: {
-        group_id: 32167,
-        groups_to_display: [32167],
-      },
+
+      asm: undefined,
     };
 
     const mainEmailResponse = await sgMail.send(msg);
