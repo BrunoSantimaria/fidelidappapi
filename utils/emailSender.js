@@ -189,6 +189,4 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
   }
 };
 
-
-
 module.exports = { sendMarketingEmail, sendAgendaEmail };

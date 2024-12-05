@@ -183,6 +183,8 @@ exports.emailSenderEditor = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
+    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+
     const { template, subject, clients } = req.body;
 
     // Crear campaña inicial
@@ -207,83 +209,97 @@ exports.emailSenderEditor = async (req, res) => {
     try {
       // Enviar emails a todos los clientes
       for (const client of clients) {
+        const footerContent = `
+        <div class="footer" style="text-align: center; font-family: Arial, sans-serif; color: #555; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <img 
+            src="${account?.logo || logoUrl}" 
+            alt="FidelidApp Logo" 
+            style="width: 150px; height: auto; margin-bottom: 20px;">
+          
+          ${
+            account.socialMedia.instagram || account.socialMedia.facebook || account.socialMedia.whatsapp || account.socialMedia.website
+              ? `<p style="font-size: 14px; font-weight: bold; margin: 10px 0;">Síguenos en nuestras redes sociales</p>`
+              : ""
+          }
+          
+          <div class="social-icons" style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
+            ${
+              account.socialMedia.instagram
+                ? `<a href="${account.socialMedia.instagram}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
+                      alt="Instagram" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+            ${
+              account.socialMedia.facebook
+                ? `<a href="${account.socialMedia.facebook}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
+                      alt="Facebook" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+            ${
+              account.socialMedia.whatsapp
+                ? `<a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
+                      alt="WhatsApp" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+            ${
+              account.socialMedia.website
+                ? `<a href="${account.socialMedia.website}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://www.svgrepo.com/show/453365/language.svg" 
+                      alt="Website" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+          </div>
+      
+          <p style="font-size: 12px; color: #999;">
+            &copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.
+          </p>
+      
+          <p style="font-size: 12px; color: #999; margin-top: 20px;">
+            Haz clic <a href="<%unsubscribe_url%>" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.
+          </p>
+        </div>
+        
+        <style>
+          .social-icons a:hover img {
+            filter: brightness(0.8);
+          }
+        </style>
+      `;
+
+        // Inyectar el footer al final del template
         const msg = {
           to: client.email,
           from: account.senderEmail || "contacto@fidelidapp.cl",
           subject: subject.replace(/{nombreCliente}/g, client.name || ""),
-          html: `
-            ${template.replace(/{nombreCliente}/g, client.name || "")}
-            <div class="footer" style="text-align: center; font-family: Arial, sans-serif; color: #555;">
-              <img 
-                src="${account?.logo || logoUrl}" 
-                alt="FidelidApp Logo" 
-                style="width: 150px; height: auto; margin-bottom: 20px;">
-              
-              <div class="social-icons" style="display: flex; justify-content: center; gap: 15px; margin: 20px 0;">
-                ${
-                  account.socialMedia.instagram
-                    ? `
-                  <a href="${account.socialMedia.instagram}" target="_blank">
-                    <img 
-                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
-                      alt="Instagram" 
-                      style="width: 24px; height: 24px;">
-                  </a>
-                `
-                    : ""
-                }
-                ${
-                  account.socialMedia.facebook
-                    ? `
-                  <a href="${account.socialMedia.facebook}" target="_blank">
-                    <img 
-                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
-                      alt="Facebook" 
-                      style="width: 24px; height: 24px;">
-                  </a>
-                `
-                    : ""
-                }
-                ${
-                  account.socialMedia.whatsapp
-                    ? `
-                  <a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank">
-                    <img 
-                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
-                      alt="WhatsApp" 
-                      style="width: 24px; height: 24px;">
-                  </a>
-                `
-                    : ""
-                }
-                ${
-                  account.socialMedia.website
-                    ? `
-                  <a href="${account.socialMedia.website}" target="_blank">
-                    <img 
-                      src="https://www.svgrepo.com/show/453365/language.svg" 
-                      alt="Website" 
-                      style="width: 24px; height: 24px;">
-                  </a>
-                `
-                    : ""
-                }
-              </div>
-        
-              <p style="font-size: 12px; color: #999;">&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
-            </div>
-          `,
+          html: `${template.replace(/{nombreCliente}/g, client.name || "")}${footerContent}`,
           custom_args: {
             campaign_id: savedCampaign._id.toString(),
           },
           tracking_settings: {
             click_tracking: { enable: true },
             open_tracking: { enable: true },
-          },
-          asm: {
-            group_id: 32167,
+            subscription_tracking: {
+              enable: true,
+              substitution_tag: "<%unsubscribe_url%>", // Configuración correcta para el link de desuscripción
+            },
           },
         };
+        console.log(msg.html);
 
         const response = await sgMail.send(msg);
         const messageId = response[0].headers["x-message-id"];
@@ -311,7 +327,7 @@ exports.emailSenderEditor = async (req, res) => {
       // Actualizar el contador de correos enviados en la cuenta
       if (account) {
         const currentCount = account.emailsSentCount || 0;
-        account.emailsSentCount = currentCount + savedCampaign.metrics.delivered;
+        account.emailsSentCount = currentCount + savedCampaign.metrics.totalSent;
         account.lastEmailSentAt = new Date();
 
         try {
@@ -460,7 +476,13 @@ exports.emailSenderEditor = async (req, res) => {
         tracking_settings: {
           click_tracking: { enable: true },
           open_tracking: { enable: true },
-          subscription_tracking: { enable: false },
+          subscription_tracking: {
+            enable: true,
+            text: "Haz clic aquí para cancelar tu suscripción.",
+            html: `<p style="text-align: center; font-size: 12px; color: #666;">
+                     Haz clic <a href="{{{unsubscribe}}}" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.
+                   </p>`,
+          },
         },
       };
 
