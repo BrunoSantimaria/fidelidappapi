@@ -2,9 +2,9 @@ const cron = require("node-cron");
 const Promotion = require("../promotions/promotions.model"); // Adjust the path to your model
 
 
-cron.schedule('*/10 * * * * *', async () => { // Cada 5 segundo para testing
+//cron.schedule('*/10 * * * * *', async () => { // Cada 5 segundo para testing
 // Cron job: Runs every day 4 AM Server Time (UTC ?)
-//cron.schedule("0 4 * * *", async () => {
+cron.schedule("0 4 * * *", async () => {
     console.log("Running daily promotion status update...");
 
     try {
