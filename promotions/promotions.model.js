@@ -85,7 +85,7 @@ const promotionSchema = new mongoose.Schema(
     status: {
       type: String,
       default: "active",
-      enum: ["active", "inactive"],
+      enum: ["active", "inactive", "expired", "redeemed", "pending"],
     },
     daysOfWeek: {
       type: [Number], // Los días de la semana se representan como números (1-7)

@@ -570,7 +570,7 @@ exports.getClientPromotion = async (req, res) => {
     const currentDate = new Date();
     const promotionEndDate = new Date(promotion.endDate);
 
-    if (currentDate > promotionEndDate) {
+    if (promotion.systemType === "points" && currentDate > promotionEndDate) {
       // Si la promoción ha expirado, actualiza su estado
       promotion.status = "Expired";
       // Guarda los cambios en la base de datos
@@ -628,8 +628,6 @@ exports.getClientPromotion = async (req, res) => {
           endDate,
         };
       });
-
-
 
     console.log("clientPromotions", reducedClientPromotions);
 
