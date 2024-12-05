@@ -32,6 +32,14 @@ exports.createPromotion = async (req, res) => {
       return res.status(404).json({ error: "Account not found" });
     }
 
+    let daysOfWeekNumbers = [];
+    // Verifica que el valor sea una cadena válida
+    if (typeof req.body.promotionRequirements.daysOfWeek === 'string') {
+      // Convierte la cadena en un array de números
+      daysOfWeekNumbers = req.body.promotionRequirements.daysOfWeek.split(',').map(Number).filter(day => !isNaN(day));
+    }
+
+
     const promotionData = {
       userID: account.owner,
       title: req.body.promotionDetails.title,
@@ -46,6 +54,7 @@ exports.createPromotion = async (req, res) => {
       rewards: req.body.promotionRequirements.rewards || [],
       startDate: req.body.systemType === "visits" ? req.body.promotionRequirements.startDate : null,
       endDate: req.body.systemType === "visits" ? req.body.promotionRequirements.endDate : null,
+      daysOfWeek: req.body.systemType === "visits" ? daysOfWeekNumbers : [],
     };
 
     // Agregar visitas requeridas solo si el sistema es de visitas
@@ -501,15 +510,14 @@ exports.addClientToPromotion = async (req, res) => {
 };
 
 const setClientIdCookie = async (res, clientId, promotionId) => {
-  // **Establecer la cookie para clientId**
+  // Establecer la cookie para clientId
   res.cookie("clientId", clientId, {
-    path: `/promotion/${promotionId}`, // Hacerla específica para esta promoción
-    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // 10 años en milisegundos
-
-    //Comentar los siguientes parametros en DEV para que funcione
-    sameSite: "None", // Previene el envío de cookies en solicitudes de terceros
-    secure: true, // Solo en HTTPS
-    domain: "fidelidapp.cl", // Replace with your domain
+    httpOnly: false, // Protección contra ataques XSS
+    secure: true, // Solo se enviará si la conexión es segura (https)
+    sameSite: "None", // Necesario para cookies de terceros (cross-site)
+    domain: ".fidelidapp.cl", // Asegúrate de que el dominio sea accesible desde el subdominio
+    path: "/", // Asegúrate de que la cookie esté disponible en todo el sitio
+    expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000), // Expiración a largo plazo (10 años)
   });
 };
 
@@ -523,15 +531,21 @@ exports.getClientPromotion = async (req, res) => {
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
-
+    console.log("client")
     console.log(client)
 
     // Encuentra la promoción específica del cliente usando el promotionId
-    const promotion = client.addedpromotions.find((promo) => promo.promotion._id.toString() === promotionId);
+    const promotion = client.addedpromotions.find(
+      (promo) => promo.promotion?._id?.toString() === promotionId
+    );
+
 
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found for this client" });
     }
+
+    console.log("promotion")
+    console.log(promotion)
 
     const account = await Account.find({
       promotions: promotion.promotion,
@@ -586,9 +600,8 @@ exports.getClientPromotion = async (req, res) => {
     console.log("account promotions", account[0].promotions);
 
     // Find the specific client with a matching clientId and promotions
-
     const reducedClientPromotions = client.addedpromotions
-      .filter((clientPromo) => account[0].promotions.includes(clientPromo.promotion._id))
+      .filter((clientPromo) => account[0].promotions.includes(clientPromo.promotion?._id))
       .map((promo) => {
         const {
           _id,
@@ -1171,6 +1184,303 @@ exports.redeemPromotionPoints = async (req, res) => {
   }
 };
 
+
+const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
+  try {
+    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
+    const msg = {
+      to: clientEmail,
+      from: "contacto@fidelidapp.cl",
+      subject: "¡Has sido agregado a una promoción!",
+      html: `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Promoción</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+              background-color: #f4f4f4;
+            }
+            .container {
+              width: 100%;
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              padding: 20px;
+              border-radius: 10px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .header {
+              text-align: center;
+              padding-bottom: 20px;
+            }
+            .header img {
+              max-width: 150px;
+            }
+            .content {
+              padding: 20px;
+              text-align: center;
+            }
+            .content h1 {
+              color: #333333;
+            }
+            .content p {
+              color: #666666;
+              line-height: 1.6;
+            }
+            .button {
+              display: inline-block;
+              padding: 10px 20px;
+              color: #ffffff;
+              background-color: #5c7898;
+              border-radius: 5px;
+              text-decoration: none;
+              margin-top: 20px;
+              text-color: #ffffff;
+              color: #ffffff;
+            }
+            .footer {
+              text-align: center;
+              padding: 20px;
+              font-size: 12px;
+              color: #aaaaaa;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="content">
+<h1>¡Has sido agregado a una promoción!</h1>
+<h1>${promotionTitle}</h1>
+<p> ${existingPromotiondata.description}</h1>
+${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</p>` : ""}
+<p>Verifica tu promoción haciendo clic en el siguiente enlace:</p>
+<a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Ver Fidelicard</a>
+<p>Y para validar tus visitas o sumar puntos, pide que te muestren el QR de la tienda. </p>
+<p>Aplican Condiciones:</p>
+<p>${existingPromotiondata.conditions}</p>
+            </div>
+            <div class="footer">
+            <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
+<p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    await sgMail.send(msg);
+    console.log("Email sent successfully");
+  } catch (error) {
+    console.error("Error sending email:", error);
+  }
+};
+
+const cron = require("node-cron");
+const { time } = require("console");
+
+cron.schedule("0 0 * * *", async () => {
+  try {
+    const currentDate = new Date();
+
+    const expiredPromotions = await Promotion.find({
+      $or: [
+        { endDate: { $lt: currentDate }, status: { $ne: "Expirada" } },
+        { promotionRecurrent: true, promotionDuration: { $lt: currentDate - new Date(promotion.createdAt) }, status: { $ne: "Expirada" } }, // Promociones recurrentes y vencidas
+      ],
+    });
+
+    for (const promotion of expiredPromotions) {
+      await Promotion.updateOne({ _id: promotion._id }, { $set: { status: "Expirada" } });
+
+      if (promotion.systemType === "points") {
+        for (const clientData of promotion.addedClients) {
+          const client = await Client.findById(clientData.clientId);
+
+          if (client) {
+            const pointsToRemove = clientData.pointsEarned;
+            await Client.updateOne({ _id: client._id }, { $inc: { totalPoints: -pointsToRemove } });
+          }
+        }
+      }
+
+      if (promotion.systemType === "visits") {
+        for (const clientData of promotion.addedClients) {
+          const client = await Client.findById(clientData.clientId);
+
+          if (client) {
+            if (clientData.redeemCount >= promotion.maxVisits) {
+              await Client.updateOne({ _id: client._id, "addedpromotions.promotion": promotion._id }, { $set: { "addedpromotions.$.status": "Expirada" } });
+            }
+          }
+        }
+      }
+    }
+
+    console.log("Cron job ejecutado y promociones expiradas actualizadas.");
+  } catch (error) {
+    console.error("Error al ejecutar cron job:", error);
+  }
+});
+
+exports.getPromotionRegistrations = async (req, res) => {
+  try {
+    const { accountId, startDate, endDate } = req.query;
+
+    let query = {};
+
+    if (accountId) {
+      query.accountId = accountId;
+    }
+
+    if (startDate || endDate) {
+      query.registrationDate = {};
+      if (startDate) {
+        query.registrationDate.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        query.registrationDate.$lte = new Date(endDate);
+      }
+    }
+
+    const registrations = await PromotionRegistration.find(query)
+      .sort({ registrationDate: -1 })
+      .populate("promotionId", "title description")
+      .populate("clientId", "name email phoneNumber");
+
+    res.status(200).json({
+      registrations,
+      total: registrations.length,
+    });
+  } catch (error) {
+    console.error("Error fetching promotion registrations:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+exports.getWeeklyVisits = async (req, res) => {
+  try {
+    console.log("1. Iniciando getWeeklyVisits");
+    console.log("Email recibido:", req.email);
+
+    const email = req.email;
+    const user = await User.findOne({ email });
+    console.log("2. Usuario encontrado:", user ? "Sí" : "No");
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Obtener la fecha de hace una semana
+    const oneWeekAgo = moment().subtract(7, "days").startOf("day").toDate();
+    console.log("3. Fecha hace una semana:", oneWeekAgo);
+
+    // Obtener todas las promociones del usuario
+    const promotions = await Promotion.find({ userID: user._id });
+    console.log("4. Número de promociones encontradas:", promotions.length);
+    const promotionIds = promotions.map((promotion) => promotion._id);
+    console.log("5. IDs de promociones:", promotionIds);
+
+    // Buscar clientes con estas promociones
+    const clients = await Client.aggregate([
+      {
+        $match: {
+          "addedpromotions.promotion": { $in: promotionIds },
+        },
+      },
+      {
+        $unwind: "$addedpromotions",
+      },
+      {
+        $match: {
+          "addedpromotions.promotion": { $in: promotionIds },
+        },
+      },
+      {
+        $unwind: "$addedpromotions.visitDates",
+      },
+      {
+        $match: {
+          "addedpromotions.visitDates.date": {
+            $gte: oneWeekAgo,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
+          },
+          totalVisits: { $sum: 1 },
+          uniqueClients: { $addToSet: "$_id" },
+        },
+      },
+      {
+        $sort: { "_id.date": 1 },
+      },
+    ]);
+
+    console.log("6. Resultados de la agregación:", clients);
+
+    // Preparar el objeto de respuesta
+    const weeklyStats = {
+      totalVisits: 0,
+      uniqueClients: new Set(),
+      dailyVisits: {},
+    };
+
+    // Inicializar los últimos 7 días con 0 visitas
+    for (let i = 0; i < 7; i++) {
+      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
+      weeklyStats.dailyVisits[date] = {
+        visits: 0,
+        uniqueClients: 0,
+      };
+    }
+
+    console.log("7. Estructura inicial de weeklyStats:", weeklyStats);
+
+    // Llenar con los datos reales
+    clients.forEach((day) => {
+      const date = day._id.date;
+      if (weeklyStats.dailyVisits[date]) {
+        weeklyStats.dailyVisits[date] = {
+          visits: day.totalVisits,
+          uniqueClients: day.uniqueClients.length,
+        };
+        weeklyStats.totalVisits += day.totalVisits;
+        day.uniqueClients.forEach((clientId) => weeklyStats.uniqueClients.add(clientId.toString()));
+      }
+    });
+
+    console.log("8. WeeklyStats después de procesar:", weeklyStats);
+
+    // Convertir el resultado final
+    const response = {
+      totalVisits: weeklyStats.totalVisits,
+      uniqueClients: weeklyStats.uniqueClients.size,
+      dailyStats: Object.entries(weeklyStats.dailyVisits).map(([date, stats]) => ({
+        date,
+        visits: stats.visits,
+        uniqueClients: stats.uniqueClients,
+      })),
+    };
+
+    console.log("9. Respuesta final:", response);
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error en getWeeklyVisits:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
 exports.getDashboardMetrics = async (req, res) => {
   const timePeriod = req.body.timePeriod || 14;
   const startDate = moment().subtract(timePeriod, "days").startOf("day").toDate();
@@ -1573,7 +1883,6 @@ const getGlobalCampaignMetrics = async (accountId) => {
   ]);
 };
 
-
 const getDailyCampaignMetrics = async (accountId, startDate) => {
   return await Campaign.aggregate([
     {
@@ -1610,9 +1919,6 @@ const getDailyCampaignMetrics = async (accountId, startDate) => {
   ]);
 };
 
-
-
-
 const getCampaignDetails = async (accountId) => {
   return await Campaign.aggregate([
     {
@@ -1628,301 +1934,4 @@ const getCampaignDetails = async (accountId) => {
       },
     },
   ]);
-};
-
-
-const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
-  try {
-    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
-    const msg = {
-      to: clientEmail,
-      from: "contacto@fidelidapp.cl",
-      subject: "¡Has sido agregado a una promoción!",
-      html: `
-        <!DOCTYPE html>
-        <html lang="es">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Promoción</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 0;
-              background-color: #f4f4f4;
-            }
-            .container {
-              width: 100%;
-              max-width: 600px;
-              margin: 0 auto;
-              background-color: #ffffff;
-              padding: 20px;
-              border-radius: 10px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .header {
-              text-align: center;
-              padding-bottom: 20px;
-            }
-            .header img {
-              max-width: 150px;
-            }
-            .content {
-              padding: 20px;
-              text-align: center;
-            }
-            .content h1 {
-              color: #333333;
-            }
-            .content p {
-              color: #666666;
-              line-height: 1.6;
-            }
-            .button {
-              display: inline-block;
-              padding: 10px 20px;
-              color: #ffffff;
-              background-color: #5c7898;
-              border-radius: 5px;
-              text-decoration: none;
-              margin-top: 20px;
-              text-color: #ffffff;
-              color: #ffffff;
-            }
-            .footer {
-              text-align: center;
-              padding: 20px;
-              font-size: 12px;
-              color: #aaaaaa;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="content">
-<h1>¡Has sido agregado a una promoción!</h1>
-<h1>${promotionTitle}</h1>
-<p> ${existingPromotiondata.description}</h1>
-${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> ${existingPromotiondata.visitsRequired}</p>` : ""}
-<p>Verifica tu promoción haciendo clic en el siguiente enlace:</p>
-<a href="${process.env.BASE_URL}/promotions/${clientid}/${existingPromotiondataid}" class="button">Ver Fidelicard</a>
-<p>Y para validar tus visitas o sumar puntos, pide que te muestren el QR de la tienda. </p>
-<p>Aplican Condiciones:</p>
-<p>${existingPromotiondata.conditions}</p>
-            </div>
-            <div class="footer">
-            <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
-<p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    };
-
-    await sgMail.send(msg);
-    console.log("Email sent successfully");
-  } catch (error) {
-    console.error("Error sending email:", error);
-  }
-};
-
-const cron = require("node-cron");
-const { time } = require("console");
-
-cron.schedule("0 0 * * *", async () => {
-  try {
-    const currentDate = new Date();
-
-    const expiredPromotions = await Promotion.find({
-      $or: [
-        { endDate: { $lt: currentDate }, status: { $ne: "Expirada" } },
-        { promotionRecurrent: true, promotionDuration: { $lt: currentDate - new Date(promotion.createdAt) }, status: { $ne: "Expirada" } }, // Promociones recurrentes y vencidas
-      ],
-    });
-
-    for (const promotion of expiredPromotions) {
-      await Promotion.updateOne({ _id: promotion._id }, { $set: { status: "Expirada" } });
-
-      if (promotion.systemType === "points") {
-        for (const clientData of promotion.addedClients) {
-          const client = await Client.findById(clientData.clientId);
-
-          if (client) {
-            const pointsToRemove = clientData.pointsEarned;
-            await Client.updateOne({ _id: client._id }, { $inc: { totalPoints: -pointsToRemove } });
-          }
-        }
-      }
-
-      if (promotion.systemType === "visits") {
-        for (const clientData of promotion.addedClients) {
-          const client = await Client.findById(clientData.clientId);
-
-          if (client) {
-            if (clientData.redeemCount >= promotion.maxVisits) {
-              await Client.updateOne({ _id: client._id, "addedpromotions.promotion": promotion._id }, { $set: { "addedpromotions.$.status": "Expirada" } });
-            }
-          }
-        }
-      }
-    }
-
-    console.log("Cron job ejecutado y promociones expiradas actualizadas.");
-  } catch (error) {
-    console.error("Error al ejecutar cron job:", error);
-  }
-});
-
-exports.getPromotionRegistrations = async (req, res) => {
-  try {
-    const { accountId, startDate, endDate } = req.query;
-
-    let query = {};
-
-    if (accountId) {
-      query.accountId = accountId;
-    }
-
-    if (startDate || endDate) {
-      query.registrationDate = {};
-      if (startDate) {
-        query.registrationDate.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        query.registrationDate.$lte = new Date(endDate);
-      }
-    }
-
-    const registrations = await PromotionRegistration.find(query)
-      .sort({ registrationDate: -1 })
-      .populate("promotionId", "title description")
-      .populate("clientId", "name email phoneNumber");
-
-    res.status(200).json({
-      registrations,
-      total: registrations.length,
-    });
-  } catch (error) {
-    console.error("Error fetching promotion registrations:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.getWeeklyVisits = async (req, res) => {
-  try {
-    console.log("1. Iniciando getWeeklyVisits");
-    console.log("Email recibido:", req.email);
-
-    const email = req.email;
-    const user = await User.findOne({ email });
-    console.log("2. Usuario encontrado:", user ? "Sí" : "No");
-
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
-
-    // Obtener la fecha de hace una semana
-    const oneWeekAgo = moment().subtract(7, "days").startOf("day").toDate();
-    console.log("3. Fecha hace una semana:", oneWeekAgo);
-
-    // Obtener todas las promociones del usuario
-    const promotions = await Promotion.find({ userID: user._id });
-    console.log("4. Número de promociones encontradas:", promotions.length);
-    const promotionIds = promotions.map((promotion) => promotion._id);
-    console.log("5. IDs de promociones:", promotionIds);
-
-    // Buscar clientes con estas promociones
-    const clients = await Client.aggregate([
-      {
-        $match: {
-          "addedpromotions.promotion": { $in: promotionIds },
-        },
-      },
-      {
-        $unwind: "$addedpromotions",
-      },
-      {
-        $match: {
-          "addedpromotions.promotion": { $in: promotionIds },
-        },
-      },
-      {
-        $unwind: "$addedpromotions.visitDates",
-      },
-      {
-        $match: {
-          "addedpromotions.visitDates.date": {
-            $gte: oneWeekAgo,
-          },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            date: { $dateToString: { format: "%Y-%m-%d", date: "$addedpromotions.visitDates.date" } },
-          },
-          totalVisits: { $sum: 1 },
-          uniqueClients: { $addToSet: "$_id" },
-        },
-      },
-      {
-        $sort: { "_id.date": 1 },
-      },
-    ]);
-
-    console.log("6. Resultados de la agregación:", clients);
-
-    // Preparar el objeto de respuesta
-    const weeklyStats = {
-      totalVisits: 0,
-      uniqueClients: new Set(),
-      dailyVisits: {},
-    };
-
-    // Inicializar los últimos 7 días con 0 visitas
-    for (let i = 0; i < 7; i++) {
-      const date = moment().subtract(i, "days").format("YYYY-MM-DD");
-      weeklyStats.dailyVisits[date] = {
-        visits: 0,
-        uniqueClients: 0,
-      };
-    }
-
-    console.log("7. Estructura inicial de weeklyStats:", weeklyStats);
-
-    // Llenar con los datos reales
-    clients.forEach((day) => {
-      const date = day._id.date;
-      if (weeklyStats.dailyVisits[date]) {
-        weeklyStats.dailyVisits[date] = {
-          visits: day.totalVisits,
-          uniqueClients: day.uniqueClients.length,
-        };
-        weeklyStats.totalVisits += day.totalVisits;
-        day.uniqueClients.forEach((clientId) => weeklyStats.uniqueClients.add(clientId.toString()));
-      }
-    });
-
-    console.log("8. WeeklyStats después de procesar:", weeklyStats);
-
-    // Convertir el resultado final
-    const response = {
-      totalVisits: weeklyStats.totalVisits,
-      uniqueClients: weeklyStats.uniqueClients.size,
-      dailyStats: Object.entries(weeklyStats.dailyVisits).map(([date, stats]) => ({
-        date,
-        visits: stats.visits,
-        uniqueClients: stats.uniqueClients,
-      })),
-    };
-
-    console.log("9. Respuesta final:", response);
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error en getWeeklyVisits:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
-  }
 };

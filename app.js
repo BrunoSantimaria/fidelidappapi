@@ -13,6 +13,7 @@ require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
 const { scheduledEmailsCron } = require("./utils/ProcessScheduledEmails");
+require("./utils/promotionsCronJob");
 
 dotenv.config();
 

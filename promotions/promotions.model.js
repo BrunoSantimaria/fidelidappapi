@@ -87,6 +87,10 @@ const promotionSchema = new mongoose.Schema(
       default: "active",
       enum: ["active", "inactive"],
     },
+    daysOfWeek: {
+      type: [Number], // Los días de la semana se representan como números (1-7)
+      default: [], // Inicialmente vacío
+    },
   },
   { timestamps: true }
 );

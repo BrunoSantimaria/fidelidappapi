@@ -2,11 +2,15 @@ TO DO
 
 
 2) Que tengan fechas de validez
-Change Stepper and Model
-When Points = Points Duration
-When Promotion = Start and End Date
+OK Change Stepper and Model
+OK When Points = Points Duration
+OK When Promotion = Start and End Date
+OK Que aplique solo algunos dias a la semana
 
-Revisar flujos donde impacta esto.
+Revisar logica para aplicarlogicas de dias de la semana y fechas:
+  Revisar flujos donde impacta esto.
+  Que sea recurrente, CRON Job para revisar todos los dias
+
 
 
 1) Enviar promocion a mis clientes por email
