@@ -76,6 +76,7 @@ exports.addClient = async (req, res) => {
     let client = await Client.findOne({ email: email.trim() });
 
     if (!client) {
+      // Si no existe el cliente, lo creamos
       client = new Client({
         name: clientData.name,
         email: email.trim(),
@@ -85,6 +86,11 @@ exports.addClient = async (req, res) => {
       });
       await client.save();
     } else {
+      // Si el cliente ya existe, actualizamos el nombre si viene en la data
+      if (clientData.name) {
+        client.name = clientData.name;
+      }
+
       if (!client.addedAccounts.some((entry) => entry.accountId.equals(accountIdObj))) {
         client.addedAccounts.push({ accountId: accountIdObj });
       }
@@ -103,7 +109,7 @@ exports.addClient = async (req, res) => {
     } else {
       account.clients.push({
         id: client._id,
-        name: clientData.name,
+        name: client.name, // Aseguramos que el nombre esté actualizado
         email: clientData.email.trim(),
         phoneNumber: clientData.phoneNumber,
         addedAccounts: [accountIdObj],
@@ -220,19 +226,32 @@ exports.deleteClient = async (req, res) => {
   const clientIdObj = StrToObjectId(clientId);
 
   try {
+    // Buscar la cuenta
     const account = await Account.findById(accountIdObj);
-
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // Eliminar cliente por su ID de la cuenta
-    account.clients = account.clients.filter((client) => !client.id.equals(clientIdObj));
+    // Buscar el cliente
+    const client = await Client.findById(clientIdObj);
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
 
-    // Guardar cambios
-    await account.save();
+    // Eliminar la relación de la cuenta con el cliente (usando $pull para eficiencia)
+    await Account.findByIdAndUpdate(accountIdObj, {
+      $pull: { clients: { id: clientIdObj } },
+    });
 
-    return res.status(200).json({ message: "Client deleted successfully", clients: account.clients });
+    // Eliminar la relación del cliente con la cuenta
+    await Client.findByIdAndUpdate(clientIdObj, {
+      $pull: { addedAccounts: { accountId: accountIdObj } },
+    });
+
+    return res.status(200).json({
+      message: "Client deleted successfully",
+      clients: account.clients, // Devuelve la lista actualizada de clientes en la cuenta
+    });
   } catch (error) {
     console.error("Error deleting client:", error);
     return res.status(500).json({ message: "Internal server error" });

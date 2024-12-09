@@ -34,11 +34,13 @@ exports.createPromotion = async (req, res) => {
 
     let daysOfWeekNumbers = [];
     // Verifica que el valor sea una cadena válida
-    if (typeof req.body.promotionRequirements.daysOfWeek === 'string') {
+    if (typeof req.body.promotionRequirements.daysOfWeek === "string") {
       // Convierte la cadena en un array de números
-      daysOfWeekNumbers = req.body.promotionRequirements.daysOfWeek.split(',').map(Number).filter(day => !isNaN(day));
+      daysOfWeekNumbers = req.body.promotionRequirements.daysOfWeek
+        .split(",")
+        .map(Number)
+        .filter((day) => !isNaN(day));
     }
-
 
     const promotionData = {
       userID: account.owner,
@@ -531,21 +533,18 @@ exports.getClientPromotion = async (req, res) => {
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
-    console.log("client")
-    console.log(client)
+    console.log("client");
+    console.log(client);
 
     // Encuentra la promoción específica del cliente usando el promotionId
-    const promotion = client.addedpromotions.find(
-      (promo) => promo.promotion?._id?.toString() === promotionId
-    );
-
+    const promotion = client.addedpromotions.find((promo) => promo.promotion?._id?.toString() === promotionId);
 
     if (!promotion) {
       return res.status(404).json({ error: "Promotion not found for this client" });
     }
 
-    console.log("promotion")
-    console.log(promotion)
+    console.log("promotion");
+    console.log(promotion);
 
     const account = await Account.find({
       promotions: promotion.promotion,
@@ -559,30 +558,27 @@ exports.getClientPromotion = async (req, res) => {
       website: account[0].socialMedia.website,
     };
 
-
     // Obtiene los detalles de la promoción desde la colección de promociones
     const promotionDetails = await Promotion.findById(promotionId);
     if (!promotionDetails) {
       return res.status(404).json({ error: "Promotion details not found" });
     }
 
-    // Verifica si la fecha de la promoción ha expirado y actualiza el estado
     const currentDate = new Date();
     const promotionEndDate = new Date(promotion.endDate);
 
     if (promotion.systemType === "points" && currentDate > promotionEndDate) {
       // Si la promoción ha expirado, actualiza su estado
       promotion.status = "Expired";
-      // Guarda los cambios en la base de datos
+
       await client.save();
     }
 
-    // Lógica para mostrar puntos o visitas según el tipo de sistema
     let promotionData = {};
 
     if (promotionDetails.systemType === "points") {
       promotionData = {
-        ...promotion.toObject(), // Usamos .toObject() para convertir el documento a un objeto simple
+        ...promotion.toObject(),
         pointsEarned: promotion.pointsEarned || 0,
         totalPointsRequired: promotionDetails.totalPointsRequired || 0,
       };
@@ -603,19 +599,9 @@ exports.getClientPromotion = async (req, res) => {
     const reducedClientPromotions = client.addedpromotions
       .filter((clientPromo) => account[0].promotions.includes(clientPromo.promotion?._id))
       .map((promo) => {
-        const {
-          _id,
-          status,
-          actualVisits,
-          pointsEarned,
-          endDate,
-          systemType
-        } = promo;
+        const { _id, status, actualVisits, pointsEarned, endDate, systemType } = promo;
 
-        const {
-          title,
-          visitsRequired
-        } = promo.promotion;
+        const { title, visitsRequired } = promo.promotion;
 
         return {
           id: _id,
@@ -642,7 +628,7 @@ exports.getClientPromotion = async (req, res) => {
         phoneNumber: client.phoneNumber,
       },
       socialMedia: socialMedia,
-      clientPromotions: reducedClientPromotions
+      clientPromotions: reducedClientPromotions,
     };
 
     res.status(200).json(response);
@@ -1163,8 +1149,9 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-        }" alt="FidelidApp Logo" height="100">
+              <img src="${
+                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+              }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1181,7 +1168,6 @@ exports.redeemPromotionPoints = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 
 const sendEmailWithQRCode = async (clientEmail, existingPromotiondata, clientid, existingPromotiondataid, promotionTitle) => {
   try {
@@ -1496,14 +1482,7 @@ exports.getDashboardMetrics = async (req, res) => {
     const accountPromotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
 
     // Fetch metrics concurrently
-    const [
-      dailyMetrics,
-      globalMetrics = {},
-      customerMetrics,
-      globalCampaignMetrics,
-      dailyCampaignMetrics,
-      campaignDetails,
-    ] = await Promise.all([
+    const [dailyMetrics, globalMetrics = {}, customerMetrics, globalCampaignMetrics, dailyCampaignMetrics, campaignDetails] = await Promise.all([
       getDailyMetrics(account._id, accountPromotionIds, startDate),
       getGlobalMetrics(account._id, accountPromotionIds),
       getCustomerMetrics(account._id, accountPromotionIds),
@@ -1580,10 +1559,7 @@ exports.getDashboardMetrics = async (req, res) => {
       })) || 0;
 
     // Calculate fidelidapp index, number of returning clients over the total clients
-    const findex =
-      totalClients > 0
-        ? ((100 * visitDataByClient.filter((client) => client.visits > 1).length) / totalClients).toFixed(2)
-        : 0;
+    const findex = totalClients > 0 ? ((100 * visitDataByClient.filter((client) => client.visits > 1).length) / totalClients).toFixed(2) : 0;
 
     // Extract global email campaign metrics
     const globalCampaignMetricsData = globalCampaignMetrics[0] || {}; // Use the first element or an empty object
