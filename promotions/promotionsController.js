@@ -521,6 +521,7 @@ const setClientIdCookie = async (res, clientId, promotionId) => {
     expires: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000),
   });
 };
+
 exports.getClientPromotion = async (req, res) => {
   const clientId = req.params.cid;
   const promotionId = req.params.pid;
@@ -1601,6 +1602,10 @@ exports.getDashboardMetrics = async (req, res) => {
       totalClicks: campaign.totalClicks,
     }));
 
+    //Get contact data
+    // const contactMetrics = await getContactMetrics (account._id);
+    // console.log(contactMetrics)
+
     // Final response
     res.status(200).json({
       Name: account.name,
@@ -1609,6 +1614,7 @@ exports.getDashboardMetrics = async (req, res) => {
       totalCampaigns,
       totalPromotions: accountPromotionIds.length,
       totalClients,
+      // contactMetrics,
       totalVisits,
       totalPoints,
       totalRedeemCount,
@@ -1854,6 +1860,43 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
   // Convert mergedMetrics object to an array
   return Object.values(mergedMetrics);
 };
+
+// const getContactMetrics = async (accountId) => {
+//   return await Client.aggregate([
+//     // Match clients linked to the given account
+//     {
+//       $match: {
+//         "addedAccounts.accountId": accountId, // Ensure the account matches
+//       },
+//     },
+//     // Project to calculate if the client has an email or phone
+//     {
+//       $project: {
+//         hasEmail: { $cond: [{ $ne: ["$email", null] }, 1, 0] }, // Check if email exists
+//         hasPhone: { $cond: [{ $ne: ["$phoneNumber", null] }, 1, 0] }, // Check if phone exists
+//       },
+//     },
+//     // Group to sum up the counts
+//     {
+//       $group: {
+//         _id: null, // Combine results into a single summary
+//         totalWithEmail: { $sum: "$hasEmail" }, // Count clients with email
+//         totalWithPhone: { $sum: "$hasPhone" }, // Count clients with phone
+//         totalClients: { $sum: 1 }, // Count total clients
+//       },
+//     },
+//     // Project the output fields
+//     {
+//       $project: {
+//         _id: 0, // Exclude _id from the final output
+//         totalWithEmail: 1,
+//         totalWithPhone: 1,
+//         totalClients: 1,
+//       },
+//     },
+//   ]);
+// };
+
 
 const getGlobalCampaignMetrics = async (accountId) => {
   return await Campaign.aggregate([
