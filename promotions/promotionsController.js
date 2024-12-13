@@ -435,7 +435,10 @@ exports.addClientToPromotion = async (req, res) => {
     if (existingPromotion) {
       // **Establecer la cookie para clientId**
       setClientIdCookie(res, client._id.toString(), promotionId);
-      return res.status(400).json({ error: "Client already has this promotion" });
+      return res.status(400).json({
+        error: "Client already has this promotion",
+        clientId: client._id // Include the clientId
+      });
     }
 
     // Añadir la promoción a addedpromotions y asegurarse de incluir systemType
@@ -1150,9 +1153,8 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${
-                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-              }" alt="FidelidApp Logo" height="100">
+              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+        }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
