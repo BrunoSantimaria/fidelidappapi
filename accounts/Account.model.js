@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const slugify = require("slugify");
 
+// Definir el schema de reward
 const rewardSchema = new mongoose.Schema({
   points: {
     type: Number,
@@ -11,8 +13,10 @@ const rewardSchema = new mongoose.Schema({
   },
 });
 
+// Esquema de Account
 const accountSchema = new mongoose.Schema({
   name: { type: String },
+  slug: { type: String, unique: true, required: true },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   logo: { type: String, default: "" },
   userEmails: [{ type: String }],
@@ -103,7 +107,22 @@ const accountSchema = new mongoose.Schema({
   activePayer: { type: Boolean, default: false },
 });
 
-// Método para registrar un  enviado
+// Middleware para generar el slug automáticamente
+accountSchema.pre("save", async function (next) {
+  if (this.isModified("name")) {
+    this.slug = slugify(this.name, { lower: true, strict: true });
+
+    // Verifica si el slug es único
+    const existingAccount = await mongoose.models.Account.findOne({ slug: this.slug });
+    if (existingAccount) {
+      // Si ya existe, añade un sufijo único al slug
+      this.slug = `${this.slug}-${Date.now()}`;
+    }
+  }
+  next();
+});
+
+// Método adicional para loggear el email enviado
 accountSchema.methods.logEmailSent = async function () {
   try {
     this.emailsSentCount += 1;
@@ -114,28 +133,46 @@ accountSchema.methods.logEmailSent = async function () {
   }
 };
 
-// Método para obtener la cantidad de emails enviados en los últimos 30 días
-accountSchema.methods.getEmailSentCountLast30Days = async function () {
-  if (this.lastEmailSentAt) {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+// Función para generar slugs para cuentas existentes
+const generateSlugsForAccounts = async () => {
+  try {
+    console.log("Generando slugs para cuentas existentes...");
+    const accountsWithoutSlug = await Account.find({ slug: { $exists: false } });
 
-    if (this.lastEmailSentAt >= thirtyDaysAgo) {
-      return this.emailsSentCount;
+    for (const account of accountsWithoutSlug) {
+      let slug;
+
+      // Si la cuenta tiene un name, usamos ese valor para generar el slug
+      if (account.name) {
+        slug = slugify(account.name, { lower: true, strict: true });
+      } else {
+        // Si no tiene name, generamos un slug a partir de un identificador único
+        slug = `account-${account._id.toString().slice(-6)}`; // Usamos los últimos 6 caracteres del ObjectId
+      }
+
+      // Asegúrate de que el slug sea único
+      const existingAccount = await Account.findOne({ slug });
+      if (existingAccount) {
+        slug = `${slug}-${Date.now()}`; // Si el slug ya existe, le añadimos un timestamp para hacerlo único
+      }
+
+      // Asignar el slug generado al campo slug de la cuenta
+      account.slug = slug;
+
+      // Guardamos los cambios en la base de datos
+      await account.save();
     }
+
+    console.log(`${accountsWithoutSlug.length} cuentas actualizadas con slugs.`);
+  } catch (error) {
+    console.error("Error al generar slugs para cuentas:", error);
   }
-  return 0;
 };
 
-// Método para actualizar el plan de la cuenta
-accountSchema.methods.updatePlan = async function (plan, expirationDate) {
-  this.planStatus = plan;
-  this.planExpiration = expirationDate;
-  this.activePayer = true;
-  await this.save();
-};
-
-// Crear y exportar el modelo
+// Crear el modelo de Account
 const Account = mongoose.model("Account", accountSchema);
+
+// Ejecutar la función para generar slugs
+generateSlugsForAccounts();
 
 module.exports = Account;

@@ -12,7 +12,7 @@ require("./automationRules/automationsCronJob");
 require("./utils/emailSender");
 require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
-const { scheduledEmailsCron } = require("./utils/ProcessScheduledEmails");
+const { weekdayEmailsCron, weekendEmailsCron } = require("./utils/ProcessScheduledEmails");
 require("./utils/promotionsCronJob");
 
 dotenv.config();
@@ -22,8 +22,8 @@ mongoose
   .connect(process.env.DB_URI)
   .then(() => {
     console.log("Conectado a MongoDB");
-    scheduledEmailsCron.start();
-    console.log("Cron job de emails programados iniciado");
+    weekdayEmailsCron.start();
+    weekendEmailsCron.start();
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);
@@ -104,6 +104,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const webhookRoutes = require("./routes/webhook.routes");
 const { scheduleEmail } = require("./emailSender/emailController");
 const campaignRoutes = require("./campaigns/campaignRoutes");
+const landingRoutes = require("./landingpage/landingRoutes");
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -119,6 +120,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/campaigns", campaignRoutes);
+app.use("/api/landing", landingRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
