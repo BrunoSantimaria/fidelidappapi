@@ -1,12 +1,42 @@
 const mongoose = require("mongoose");
 
-// Define the Client Schema
+const ActivitySchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["earned", "redeemed", "visit"],
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    promotionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Promotion",
+    },
+  },
+  { _id: true }
+);
+
 const ClientSchema = new mongoose.Schema({
   name: {
     type: String,
     default: "",
   },
-  email: { type: String, unique: true, index: true }, // Índice único
+  email: {
+    type: String,
+    unique: true,
+    index: true,
+  },
   phoneNumber: {
     type: String,
     default: "",
@@ -73,15 +103,31 @@ const ClientSchema = new mongoose.Schema({
       },
     },
   ],
-
+  activities: [ActivitySchema],
   totalPoints: {
-    // Nuevo campo para almacenar el total de puntos acumulados
     type: Number,
     default: 0,
   },
 });
 
-// Create the Client model
+// Method to calculate total points from activities
+ClientSchema.methods.calculateTotalPoints = function () {
+  return this.activities.reduce((total, activity) => {
+    if (activity.type === "earned") {
+      return total + activity.amount;
+    } else if (activity.type === "redeemed") {
+      return total - activity.amount;
+    }
+    return total;
+  }, 0);
+};
+
+// Pre-save hook to update totalPoints
+ClientSchema.pre("save", function (next) {
+  this.totalPoints = this.calculateTotalPoints();
+  next();
+});
+
 const Client = mongoose.model("Client", ClientSchema);
 
 module.exports = Client;

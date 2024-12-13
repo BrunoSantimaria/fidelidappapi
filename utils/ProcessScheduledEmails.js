@@ -70,17 +70,14 @@ const processScheduledEmails = async () => {
   }
 };
 
-// Crear una instancia del cron job
-const scheduledEmailsCron = cron.schedule(
-  "* * * * *",
+const weekdayEmailsCron = cron.schedule(
+  "*/15 * * * 1-5", // Cada 15 minutos, solo de lunes a viernes
   () => {
-    console.log(`[${new Date().toISOString()}] Iniciando tarea CRON de emails programados`);
+    console.log(`[${new Date().toISOString()}] Iniciando tarea CRON de emails programados (Días de semana)`);
     processScheduledEmails()
-      .then(() => {
-        console.log(`[${new Date().toISOString()}] Tarea CRON completada exitosamente`);
-      })
+      .then(() => {})
       .catch((error) => {
-        console.error(`[${new Date().toISOString()}] Error en tarea CRON:`, error);
+        console.error(`[${new Date().toISOString()}] Error en tarea CRON (Días de semana):`, error);
       });
   },
   {
@@ -89,8 +86,24 @@ const scheduledEmailsCron = cron.schedule(
   }
 );
 
-// Exportar tanto la función como el cron job
+const weekendEmailsCron = cron.schedule(
+  "0 * * * 6,0", // Cada hora, solo los sábados (6) y domingos (0)
+  () => {
+    console.log(`[${new Date().toISOString()}] Iniciando tarea CRON de emails programados (Fines de semana)`);
+    processScheduledEmails()
+      .then(() => {})
+      .catch((error) => {
+        console.error(`[${new Date().toISOString()}] Error en tarea CRON (Fines de semana):`, error);
+      });
+  },
+  {
+    scheduled: true,
+    timezone: "America/Argentina/Buenos_Aires",
+  }
+);
+
 module.exports = {
   processScheduledEmails,
-  scheduledEmailsCron,
+  weekdayEmailsCron,
+  weekendEmailsCron,
 };
