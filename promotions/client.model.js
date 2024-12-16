@@ -4,7 +4,7 @@ const ActivitySchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["earned", "redeemed", "visit"],
+      enum: ["earned", "redeemed", "visit", "reward_redeemed", "visit_redeemed"],
       required: true,
     },
     description: {
@@ -13,6 +13,10 @@ const ActivitySchema = new mongoose.Schema(
     },
     amount: {
       type: Number,
+      required: false,
+    },
+    accountId: {
+      type: mongoose.Types.ObjectId,
       required: true,
     },
     date: {
