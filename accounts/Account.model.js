@@ -93,6 +93,7 @@ const accountSchema = new mongoose.Schema({
   accountQr: { type: String, required: false, unique: false },
   createdAt: { type: Date, default: Date.now },
   avatar: { type: String, default: "" },
+  googleBusiness: { type: String, default: "" },
   socialMedia: {
     instagram: { type: String, default: "" },
     facebook: { type: String, default: "" },
