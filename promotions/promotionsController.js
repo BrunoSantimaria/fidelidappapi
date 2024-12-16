@@ -537,8 +537,6 @@ exports.getClientPromotion = async (req, res) => {
     if (!client) {
       return res.status(404).json({ error: "Client not found" });
     }
-    console.log("client");
-    console.log(client);
 
     // Encuentra la promoción específica del cliente usando el promotionId
     const promotion = client.addedpromotions.find((promo) => promo.promotion?._id?.toString() === promotionId);

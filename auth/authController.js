@@ -69,6 +69,7 @@ exports.signIn = async (req, res) => {
 exports.signUp = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+    console.log("🚀 ~ exports.signUp= ~ name, email, password:", name, email, password);
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });

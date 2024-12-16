@@ -16,7 +16,7 @@ const rewardSchema = new mongoose.Schema({
 // Esquema de Account
 const accountSchema = new mongoose.Schema({
   name: { type: String },
-  slug: { type: String, unique: true, required: true },
+  slug: { type: String, unique: true, required: false },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   logo: { type: String, default: "" },
   userEmails: [{ type: String }],
@@ -90,7 +90,7 @@ const accountSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: false },
   industry: { type: String },
   activeQr: { type: Boolean, default: true },
-  accountQr: { type: String, required: true, unique: false },
+  accountQr: { type: String, required: false, unique: false },
   createdAt: { type: Date, default: Date.now },
   avatar: { type: String, default: "" },
   socialMedia: {

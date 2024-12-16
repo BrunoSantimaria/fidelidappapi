@@ -4,13 +4,20 @@ const Account = require("../accounts/Account.model");
 const Promotion = require("../promotions/promotions.model");
 const Client = require("../promotions/client.model");
 const mongoose = require("mongoose");
+const moment = require("moment-timezone");
+
 const jwt = require("jsonwebtoken");
+const { logAction } = require("../logger/logger");
+const { sendRegisterEmail, sendRedemptionEmail } = require("../utils/landingEmails");
 const StrToObjectId = (id) => new mongoose.Types.ObjectId(id);
+const getChileanDateTime = () => {
+  return moment().tz("America/Santiago").toDate();
+};
 router.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
     console.log("🚀 ~ router.get ~ slug:", slug);
-    const account = await Account.findOne({ slug }).select("name card logo socialMedia landingLinks promotions");
+    const account = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landingLinks promotions");
 
     if (!account) {
       return res.status(404).json({ error: "Cuenta no encontrada" });
@@ -33,15 +40,35 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
   try {
     const { slug, clientId } = req.params;
     const { email, accountId } = req.query;
-    console.log("🚀 ~ router.get ~ slug, clientId:", slug, email, accountId);
-    await addPromotionsToClient(email, accountId);
-    // Primero, encuentra la cuenta por el slug
-    const account = await Account.findOne({ slug });
-    if (!account) {
-      return res.status(404).json({ error: "Cuenta no encontrada" });
+
+    // Log inicial con los parámetros de entrada
+    console.log("🔍 Entrada -> slug:", slug, "clientId:", clientId, "email:", email, "accountId:", accountId);
+
+    // Intentar agregar promociones al cliente
+    if (email && accountId) {
+      console.log("➡️ Ejecutando addPromotionsToClient con email:", email, "y accountId:", accountId);
+      const client = await Client.findById(StrToObjectId(email));
+      await addPromotionsToClient(client, null, slug);
+      console.log("✔️ addPromotionsToClient ejecutado con éxito");
+    } else {
+      console.log("⚠️ addPromotionsToClient no ejecutado porque falta email o accountId");
     }
 
-    const _id = StrToObjectId(email);
+    // Buscar la cuenta por el slug
+    console.log("🔍 Buscando cuenta con slug:", slug);
+    const account = await Account.findOne({ slug });
+    if (!account) {
+      console.log("❌ Cuenta no encontrada para slug:", slug);
+      return res.status(404).json({ error: "Cuenta no encontrada" });
+    }
+    console.log("✔️ Cuenta encontrada -> ID:", account._id);
+
+    // Obtener IDs de promociones asociadas a la cuenta
+    const accountPromotionIds = account.promotions.map((promoId) => StrToObjectId(promoId));
+    console.log("🔗 Promociones asociadas a la cuenta (IDs):", accountPromotionIds);
+
+    // Preparar query para buscar cliente
+    const _id = email ? StrToObjectId(email) : null;
     const query = _id
       ? {
           clientId,
@@ -51,62 +78,121 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
           _id: new mongoose.Types.ObjectId(clientId),
           addedAccounts: { $elemMatch: { accountId: StrToObjectId(account._id) } },
         };
+    console.log("🔍 Query para buscar cliente:", query);
 
-    // Encuentra el cliente
+    // Buscar cliente
+    console.log("🔍 Buscando cliente con ID:", _id || clientId);
     const client = await Client.findById(_id).populate({
       path: "addedpromotions.promotion",
       model: "Promotion",
+      match: {
+        _id: { $in: accountPromotionIds }, // Filtrar solo promociones asociadas
+      },
     });
-    console.log("🚀 ~ client ~ client:", client);
     if (!client) {
+      console.log("❌ Cliente no encontrado para ID:", _id || clientId);
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
+    console.log("✔️ Cliente encontrado -> ID:", client._id);
 
-    // Filtrar promociones activas
+    // Filtrar promociones no nulas
+    console.log("🔍 Filtrando promociones no nulas en client.addedpromotions...");
+    const addedPromotionsBefore = client.addedpromotions.length;
+    client.addedpromotions = client.addedpromotions.filter((promo) => promo.promotion !== null);
+    const addedPromotionsAfter = client.addedpromotions.length;
+    console.log(`✔️ Promociones filtradas -> Antes: ${addedPromotionsBefore}, Después: ${addedPromotionsAfter}`);
+
+    // Calcular puntos ganados
+    console.log("🔍 Calculando puntos ganados...");
+
+    // Filtrar promociones activas de la cuenta
+    console.log("🔍 Filtrando promociones activas de la cuenta...");
+    const now = new Date();
     const activePromotions = account.promotions.filter((promo) => {
-      const now = new Date();
       return (!promo.startDate || promo.startDate <= now) && (!promo.endDate || promo.endDate >= now) && promo.status === "active";
     });
+    const activePromotionsForOwner = activePromotions.filter((promo) => promo.userId.toString() === account.owner.toString());
 
-    // Preparar datos de FideliCard
+    const earnedPoints = client.addedpromotions
+      .filter(
+        (promo) => promo.systemType === "points" // Solo promociones de puntos
+      )
+      .reduce((total, promo) => {
+        // Asegurarse de que `pointsEarned` esté definido, si no, asignar 0
+        const points = promo.pointsEarned || 0;
+        return total + points; // Sumar los puntos ganados
+      }, 0);
+
+    console.log("✔️ Puntos ganados -> Total:", earnedPoints);
+
+    // Preparar datos para la FideliCard
+    console.log("🔍 Preparando datos para la FideliCard...");
+    const activitiesFiltered = client.activities
+      .filter((activity) => activity.accountId.toString() === account._id.toString())
+      .sort((a, b) => b.date - a.date)
+      .slice(0, 10);
+    console.log("✔️ Actividades recientes -> Total:", activitiesFiltered.length);
+
     const fideliCardData = {
       name: client.name,
       email: client.email,
       phoneNumber: client.phoneNumber,
-      totalPoints: client.totalPoints,
-      activities: client.activities.sort((a, b) => b.date - a.date).slice(0, 5),
-      promotions: activePromotions,
+      totalPoints: earnedPoints, // Usamos los puntos calculados aquí
+      activities: activitiesFiltered,
+      promotions: activePromotions, // Asegúrate de que `activePromotions` esté correctamente calculado
       addedPromotions: client.addedpromotions,
     };
+    console.log("✔️ Datos de FideliCard preparados ->", fideliCardData);
 
+    // Enviar respuesta
     res.json(fideliCardData);
   } catch (error) {
-    console.error("Error fetching FideliCard data:", error);
+    console.error("❌ Error al obtener los datos de la FideliCard:", error);
     res.status(500).json({ error: "Error al obtener los datos de la FideliCard" });
   }
 });
 
-const addPromotionsToClient = async (client, accountId) => {
-  // Find the account and its promotions
-  const account = await Account.findById(accountId).populate("promotions");
-  console.log("🚀 ~ addPromotionsToClient ~ account:", account);
-  console.log(client, accountId);
+const addPromotionsToClient = async (client, accountId, slug) => {
+  let account;
+
+  // Buscar la cuenta según accountId o slug
+  if (accountId) {
+    account = await Account.findById(accountId).populate("promotions");
+    console.log("🚀 ~ addPromotionsToClient ~ Buscando cuenta por accountId:", accountId);
+  } else if (slug) {
+    account = await Account.findOne({ slug: slug }).populate("promotions");
+    console.log("🚀 ~ addPromotionsToClient ~ Buscando cuenta por slug:", slug);
+  }
+
+  // Validar si la cuenta fue encontrada
   if (!account) {
     throw new Error("Cuenta no encontrada");
   }
-  const clientNew = await Client.findById(StrToObjectId(client));
-  // Ensure addedPromotions exists
-  if (!clientNew.addedpromotions) {
-    client.addedpromotions = [];
+
+  const { email } = client;
+
+  if (!email) {
+    throw new Error("El cliente no tiene un email válido.");
   }
 
-  // Add new promotions while preserving existing data
+  // Buscar cliente por email
+  const clientNew = await Client.findOne({ email });
+  console.log("🚀 ~ addPromotionsToClient ~ clientNew encontrado:", clientNew);
+
+  if (!clientNew) {
+    throw new Error(`Cliente con email ${email} no encontrado.`);
+  }
+
+  // Asegurarse de que addedpromotions exista
+  if (!clientNew.addedpromotions) {
+    clientNew.addedpromotions = [];
+  }
+
+  // Agregar promociones nuevas
   account.promotions.forEach((promotion) => {
-    // Check if promotion already exists
     const existingPromotion = clientNew.addedpromotions.find((p) => p.promotion.toString() === promotion._id.toString());
 
     if (!existingPromotion) {
-      // Add new promotion with default values
       clientNew.addedpromotions.push({
         promotion: promotion._id,
         addedDate: new Date(),
@@ -121,7 +207,10 @@ const addPromotionsToClient = async (client, accountId) => {
     }
   });
 
+  // Guardar cliente actualizado
   await clientNew.save();
+  console.log("✅ Cliente actualizado exitosamente con promociones:", clientNew.addedpromotions);
+
   return clientNew;
 };
 
@@ -130,30 +219,70 @@ router.post("/register", async (req, res) => {
   try {
     const { name, email, phone, accountId } = req.body;
 
-    // Check if client already exists in the account
-    const existingClient = await Client.findOne({
-      email,
-      addedAccounts: { $elemMatch: { accountId: new mongoose.Types.ObjectId(accountId) } },
+    console.log("🚀 ~ router.post ~ accountId:", accountId);
+    console.log("🚀 ~ router.post ~ email:", email);
+
+    // Formatear el accountId como ObjectId
+    const formattedAccountId = new mongoose.Types.ObjectId(accountId);
+
+    // Verificar si el cliente ya está registrado en la cuenta específica
+    const existingClientRegistered = await Client.findOne({
+      email: email.toLowerCase(),
+      addedAccounts: { $elemMatch: { accountId: formattedAccountId } },
     });
 
-    if (existingClient) {
+    if (existingClientRegistered) {
       return res.status(400).json({ error: "El cliente ya está registrado en esta cuenta" });
     }
 
-    // Create the client
+    // Verificar si el cliente existe, pero no está registrado en esta cuenta
+    const existingClient = await Client.findOne({ email: email.toLowerCase() });
+
+    if (existingClient) {
+      // Agregar la nueva cuenta al array addedAccounts
+      existingClient.addedAccounts.push({ accountId: formattedAccountId });
+
+      // Guardar los cambios en el cliente
+      const updatedClient = await existingClient.save();
+
+      // Agregar promociones relacionadas con la nueva cuenta
+      await addPromotionsToClient(updatedClient, accountId, null);
+
+      // Añadir el cliente al array de `clients` de la cuenta
+      await Account.findByIdAndUpdate(accountId, {
+        $addToSet: { clients: { id: updatedClient._id, name: updatedClient.name, email: updatedClient.email } },
+      });
+
+      return res.status(200).json({
+        message: "El cliente ha sido actualizado con la nueva cuenta",
+        clientId: updatedClient._id,
+        addedAccounts: updatedClient.addedAccounts,
+      });
+    }
+
+    // Crear un nuevo cliente si no existe
     const client = new Client({
       name,
-      email,
+      email: email.toLowerCase(),
       phoneNumber: phone,
-      addedAccounts: [{ accountId: new mongoose.Types.ObjectId(accountId) }],
+      addedAccounts: [{ accountId: formattedAccountId }],
     });
 
-    // Add promotions to the client
-    const updatedClient = await addPromotionsToClient(client, accountId);
+    // Guardar el cliente en la base de datos
+    const savedClient = await client.save();
 
-    // Create JWT token
-    const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "300h" });
+    // Agregar promociones al nuevo cliente
+    const updatedClient = await addPromotionsToClient(savedClient, accountId, null);
 
+    // Añadir el cliente al array de `clients` de la cuenta
+    await Account.findByIdAndUpdate(accountId, {
+      $addToSet: { clients: { id: updatedClient._id, name: updatedClient.name, email: updatedClient.email } },
+    });
+    const account = await Account.findById(accountId);
+    // Crear un token JWT para el cliente
+    const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
+    sendRegisterEmail(email, account);
+    logAction(email, "login", "Registro y login exitoso");
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
@@ -166,7 +295,6 @@ router.post("/register", async (req, res) => {
     return res.status(500).json({ error: "Error al registrar cliente" });
   }
 });
-
 // Login Route
 router.post("/login", async (req, res) => {
   try {
@@ -186,11 +314,11 @@ router.post("/login", async (req, res) => {
     }
 
     // Add any new promotions for the account
-    const updatedClient = await addPromotionsToClient(client, accountId);
+    const updatedClient = await addPromotionsToClient(client, accountId, null);
 
     // Create JWT token
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "300h" });
-
+    logAction(email, "login", "Login exitoso");
     return res.status(200).json({
       message: "Login exitoso",
       token,
@@ -205,8 +333,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Route to get FideliCard data
-
 // Route to add an activity (you can expand this later)
 router.post("/add-activity", async (req, res) => {
   try {
@@ -220,13 +346,14 @@ router.post("/add-activity", async (req, res) => {
     if (!client) {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
-
+    const currentDate = getChileanDateTime();
     // Add activity
     client.activities.push({
       type: activity.type,
       description: activity.description,
       amount: activity.amount,
       promotionId: activity.promotionId,
+      date: currentDate,
     });
 
     await client.save();
@@ -241,4 +368,352 @@ router.post("/add-activity", async (req, res) => {
   }
 });
 
+router.post("/redeem-hot-promotion", async (req, res) => {
+  try {
+    const { email, accountId, promotionId } = req.body;
+    console.log("🚀 ~ router.post ~ email, accountId, promotionId:", email, accountId, promotionId);
+    const id = StrToObjectId(email);
+    const convertedAccountId = StrToObjectId(accountId);
+    const client = await Client.findById({
+      _id: id,
+      addedAccounts: { $elemMatch: { convertedAccountId } },
+    });
+    const today = getChileanDateTime();
+
+    if (!client) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+
+    if (!addedPromotion) {
+      return res.status(404).json({ error: "Promoción no encontrada" });
+    }
+
+    const lastRedeemDate = addedPromotion.lastRedeemDate;
+
+    // Check if promotion was redeemed today
+    if (lastRedeemDate && lastRedeemDate.toDateString() === today.toDateString()) {
+      return res.status(400).json({
+        error: "Ya has canjeado esta promoción hoy",
+      });
+    }
+
+    addedPromotion.status = "Redeemed";
+    addedPromotion.lastRedeemDate = today;
+    addedPromotion.redeemCount += 1;
+    addedPromotion.visitDates.push({
+      date: new Date(),
+      pointsAdded: 0,
+    });
+    // If promotion is recurrent, reset to Active for next day
+    const promotion = await Promotion.findById(promotionId);
+    if (promotion.promotionRecurrent === "True") {
+      // Schedule the promotion to become Active again at midnight
+      addedPromotion.status = "Active";
+    }
+
+    // Add activity
+    client.activities.push({
+      type: "visit",
+      description: `Canje de promoción: ${promotion.title}`,
+      date: today,
+      accountId: accountId,
+    });
+    const account = await Account.findById(convertedAccountId);
+    await client.save();
+    sendRedemptionEmail(client.email, promotion.title, account);
+    logAction(client.email, "redeem", `Redeem promotion: ${addedPromotion.title}`);
+    res.status(200).json({
+      message: "Promoción canjeada exitosamente",
+      promotion: addedPromotion,
+    });
+  } catch (error) {
+    console.error("Error redeeming hot promotion:", error);
+    res.status(500).json({ error: "Error al canjear la promoción" });
+  }
+});
+
+// QR Point Scanning Route
+router.post("/scan-qr-points", async (req, res) => {
+  try {
+    const { clientEmail, promotionId, accountQr } = req.body;
+    console.log("🚀 ~ router.post ~ clientEmail, promotionId, accountQr:", clientEmail, promotionId, accountQr);
+    const today = getChileanDateTime();
+    // Validate input
+    if (!accountQr || !promotionId || !clientEmail) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    // Find client
+    const client = await Client.findOne({
+      email: clientEmail,
+      addedpromotions: { $elemMatch: { promotion: promotionId } },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    // Find specific added promotion
+    const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+
+    // Check if point already added today
+    const todayScans = addedPromotion.visitDates.filter(
+      (entry) => moment(entry.date).tz("America/Santiago").format("YYYY-MM-DD") === moment(today).tz("America/Santiago").format("YYYY-MM-DD")
+    );
+
+    if (todayScans.length > 0) {
+      return res.status(400).json({ error: "Ya has agregado puntos hoy" });
+    }
+
+    // Add point
+    const pointsToAdd = 1; // Default point
+    addedPromotion.pointsEarned += pointsToAdd;
+
+    // Record visit
+    addedPromotion.visitDates.push({
+      date: new Date(),
+      pointsAdded: pointsToAdd,
+    });
+
+    // Add activity
+    client.activities.push({
+      type: "earned",
+      description: "Puntos añadidos por escaneo QR",
+      amount: pointsToAdd,
+      date: today,
+    });
+
+    await client.save();
+    logAction(client.email, "scan", `Point added: ${addedPromotion.title}`);
+
+    res.status(200).json({
+      message: "Punto añadido exitosamente",
+      pointsEarned: addedPromotion.pointsEarned,
+    });
+  } catch (error) {
+    console.error("Error scanning QR points:", error);
+    res.status(500).json({ error: "Error al escanear puntos" });
+  }
+});
+
+router.post("/redeem-promotion-reward", async (req, res) => {
+  try {
+    const { email, accountId, promotionId, rewardId, points } = req.body;
+    console.log("🚀 ~ router.post ~ req.body:", req.body);
+    const today = getChileanDateTime();
+    // Find the promotion
+    const promotion = await Promotion.findById(promotionId);
+    if (!promotion) {
+      return res.status(404).json({ error: "Promoción no encontrada" });
+    }
+
+    const convertedAccId = StrToObjectId(accountId);
+    const account = await Account.findOne({ _id: convertedAccId });
+    if (!account) {
+      return res.status(404).json({ error: "Cuenta no encontrada" });
+    }
+
+    // Find the specific reward
+    const reward = promotion.rewards.find((r) => r._id.toString() === rewardId);
+    if (!reward && promotion.systemType === "points") {
+      return res.status(404).json({ error: "Recompensa no encontrada" });
+    }
+
+    const convertedId = StrToObjectId(email);
+    console.log("🚀 ~ router.post ~ convertedId:", convertedId);
+
+    const client = await Client.findOne({
+      _id: convertedId,
+      addedAccounts: { $elemMatch: { accountId: account._id } },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    // Find the client's specific promotion
+    const clientPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+    console.log("🚀 ~ router.post ~ clientPromotion:", clientPromotion);
+
+    if (!clientPromotion) {
+      return res.status(400).json({ error: "Promoción no asociada con el cliente" });
+    }
+
+    // Handle promotions of type 'visits'
+    if (promotion.systemType === "visits") {
+      console.log("El tipo de sistema es 'visits', registrando canje de visita.");
+
+      // Check if promotion was redeemed today
+      const todayString = moment(today).tz("America/Santiago").format("YYYY-MM-DD");
+      if (promotion.lastRedeemDate === todayString) {
+        return res.status(400).json({ error: "Ya has canjeado una promoción hoy" });
+      }
+
+      // Increment visit count
+      clientPromotion.visitCount = (clientPromotion.visitCount || 0) + 1;
+
+      // Increment redeem count
+      clientPromotion.redeemCount = (clientPromotion.redeemCount || 0) + 1;
+
+      // Set lastRedeemDate to today's date
+      promotion.lastRedeemDate = today;
+
+      // Add activity for visit redemption (no points deducted)
+      client.activities.push({
+        type: "visit_redeemed",
+        description: `Canje de visita para promoción: ${promotion.title}`,
+        amount: 0, // No points for 'visits'
+        date: today,
+        accountId: account._id,
+        promotionId: promotionId,
+      });
+
+      // Save client and promotion updates
+      await client.save();
+      await promotion.save();
+      await sendRedemptionEmail(client.email, reward.description, account);
+      logAction(client.email, "redeem", `Redeem promotion: ${addedPromotion.title}`);
+
+      return res.status(200).json({
+        message: "Visita canjeada exitosamente",
+        visitCount: clientPromotion.visitCount,
+        redeemCount: clientPromotion.redeemCount,
+      });
+    }
+
+    // Handle promotions of type 'points'
+    if (promotion.systemType === "points") {
+      console.log("El tipo de sistema es 'points', verificando puntos disponibles.");
+
+      // Check if client has enough points
+      if (clientPromotion.pointsEarned < reward.points) {
+        return res.status(400).json({ error: "Puntos insuficientes para canjear esta recompensa" });
+      }
+
+      // Deduct points
+      clientPromotion.pointsEarned -= reward.points;
+
+      // Increment redeem count
+      clientPromotion.redeemCount = (clientPromotion.redeemCount || 0) + 1;
+
+      // Add activity for reward redemption
+      client.activities.push({
+        type: "reward_redeemed",
+        description: `Canje de recompensa: ${reward.description}`,
+        amount: reward.points,
+        date: new Date(),
+        accountId: account._id,
+        promotionId: promotionId,
+      });
+
+      // Save client updates
+      await client.save();
+      await promotion.save();
+      logAction(client.email, "redeem", `Redeem promotion: ${reward.description}`);
+      return res.status(200).json({
+        message: "Recompensa canjeada exitosamente",
+        pointsRemaining: clientPromotion.pointsEarned,
+        redeemCount: clientPromotion.redeemCount,
+      });
+    }
+
+    // If promotion systemType is unknown
+    return res.status(400).json({ error: "Tipo de promoción no reconocido" });
+  } catch (error) {
+    console.error("Error al canjear recompensa:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.post("/redeem-points", async (req, res) => {
+  try {
+    const { clientEmail, promotionId, accountQr } = req.body;
+    const today = getChileanDateTime();
+
+    // Validate input
+    if (!accountQr || !promotionId || !clientEmail) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    // Find the promotion
+    const existingPromotionData = await Promotion.findById(promotionId);
+    if (!existingPromotionData) {
+      return res.status(404).json({ error: "Promoción no encontrada" });
+    }
+    console.log(existingPromotionData);
+    // Find the associated account
+    const account = await Account.findOne({ owner: existingPromotionData.userID });
+    if (!account) {
+      return res.status(404).json({ error: "Cuenta asociada no encontrada" });
+    }
+
+    // Validate account QR (if needed)
+    if (account.accountQr !== accountQr) {
+      console.log(account.accountQr, accountQr);
+      return res.status(401).json({ error: "Qr inválido." });
+    }
+    const client = await Client.findOne({ email: clientEmail });
+    if (!client) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+
+    // Find the specific promotion for the client
+    const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+
+    if (!addedPromotion) {
+      return res.status(404).json({ error: "Promoción no encontrada para este cliente" });
+    }
+
+    // Check promotion status and validity
+
+    const todayScans = addedPromotion.visitDates.filter(
+      (entry) => moment(entry.date).tz("America/Santiago").format("YYYY-MM-DD") === moment(today).tz("America/Santiago").format("YYYY-MM-DD")
+    );
+    if (todayScans.length > 0) {
+      return res.status(400).json({ error: "Ya has agregado puntos hoy" });
+    }
+
+    // Determine points to add
+    const pointsToAdd = existingPromotionData.pointsPerVisit || 1;
+
+    // Update promotion points
+    addedPromotion.pointsEarned += pointsToAdd;
+    addedPromotion.actualVisits += 1;
+
+    // Record visit
+    addedPromotion.visitDates.push({
+      date: today,
+      pointsAdded: pointsToAdd,
+    });
+
+    // Add activity
+    client.activities.push({
+      type: "earned",
+      description: `Puntos añadidos en promoción: ${existingPromotionData.title}`,
+      amount: pointsToAdd,
+      date: today,
+      accountId: account._id,
+      promotionId: promotionId,
+    });
+
+    // Check if promotion is completed
+    if (addedPromotion.pointsEarned >= existingPromotionData.pointsRequired) {
+      addedPromotion.status = "Completed";
+    }
+
+    // Save client updates
+    await client.save();
+    logAction(client.email, "earned", `Punto añadido: ${reward.description}`);
+    res.status(200).json({
+      message: "Puntos añadidos exitosamente",
+      pointsEarned: addedPromotion.pointsEarned,
+      promotionStatus: addedPromotion.status,
+    });
+  } catch (error) {
+    console.error("Error al canjear puntos:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 module.exports = router;
