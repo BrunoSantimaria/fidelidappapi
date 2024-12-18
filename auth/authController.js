@@ -24,12 +24,13 @@ const generateToken = (user) => {
 };
 
 // Función auxiliar para crear cuenta
-const createAccount = async (userId, email) => {
+const createAccount = async (userId, email, name) => {
   const qrCode = await generateQr();
   const account = new Account({
     owner: userId,
     userEmails: [email],
     accountQr: qrCode,
+    name: name,
     socialMedia: {
       facebook: "",
       instagram: "",
@@ -90,7 +91,7 @@ exports.signUp = async (req, res) => {
 
     if (!existingAccount) {
       // Si no existe cuenta, crear una nueva
-      const account = await createAccount(user._id, email);
+      const account = await createAccount(user._id, email, name);
       log.logAction(email, "signup", "Usuario y cuenta creados");
 
       return res.status(201).json({
@@ -132,7 +133,7 @@ exports.googleSignIn = async (req, res) => {
 
     const account = await Account.findOne({ userEmails: email });
     if (!account) {
-      await createAccount(user._id, email);
+      await createAccount(user._id, email, name);
       log.logAction(email, "google_signup", "Usuario y cuenta creados via Google");
     }
 

@@ -1,127 +1,264 @@
 const mongoose = require("mongoose");
 const slugify = require("slugify");
 
-// Definir el schema de reward
-const rewardSchema = new mongoose.Schema({
-  points: {
-    type: Number,
-    required: true,
+const landingSchema = new mongoose.Schema(
+  {
+    card: {
+      type: {
+        type: String,
+        enum: ["link", "view_on_site"],
+        default: "view_on_site",
+      },
+      content: {
+        type: [String], // Array of image URLs or external link
+        default: [],
+      },
+      title: {
+        type: String,
+        default: "Ver nuestra carta",
+      },
+    },
+    name: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    title: {
+      type: String,
+      default: "¡Regístrate y empieza a sumar puntos! 🌟 Entérate de nuestras promociones y obtén grandes beneficios 🎉",
+    },
+    subtitle: {
+      type: String,
+      default: "Entérate de nuestras promociones y obtén grandes beneficios 🎉",
+    },
+    colorPalette: {
+      type: String,
+      enum: ["dark-slate", "ocean-breeze", "forest-green", "sunset-orange", "royal-purple", "midnight-blue"],
+      default: "dark-slate",
+    },
+    googleBusiness: {
+      type: String,
+      default: "",
+    },
   },
-  description: {
-    type: String,
-    required: true,
-  },
-});
+  { timestamps: true }
+);
 
-// Esquema de Account
-const accountSchema = new mongoose.Schema({
-  name: { type: String },
-  slug: { type: String, unique: true, required: false },
-  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  logo: { type: String, default: "" },
-  userEmails: [{ type: String }],
-  subscriptionId: { type: String },
-  clients: [
-    {
-      id: mongoose.Schema.Types.ObjectId,
-      name: String,
-      email: String,
-      phoneNumber: String,
-      addedpromotions: [
-        {
-          promotion: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Promotion",
-            required: true,
-          },
-          addedDate: {
-            type: Date,
-            default: Date.now,
-          },
-          endDate: {
-            type: Date,
-          },
-          actualVisits: {
-            type: Number,
-            default: 0,
-          },
-          pointsEarned: {
-            type: Number,
-            default: 0,
-          },
-          status: {
-            type: String,
-            enum: ["Active", "Redeemed", "Expired", "Pending"],
-            default: "Active",
-          },
-          redeemCount: {
-            type: Number,
-            default: 0,
-          },
-          visitDates: [
-            {
-              date: { type: Date, required: true },
-              pointsAdded: {
-                type: Number,
-                required: function () {
-                  return this.systemType === "points";
-                },
-              },
-              _id: false,
-            },
-          ],
-        },
-      ],
+const accountSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      default: "Mi negocio",
     },
-  ],
-  promotions: [
-    {
+    slug: {
+      type: String,
+      unique: true,
+      required: false,
+    },
+    owner: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Promotion",
+      ref: "User",
+      required: true,
     },
-  ],
-  planStatus: {
-    type: String,
-    default: "free",
-    enum: ["free", "pro", "premium", "admin"],
+    logo: {
+      type: String,
+      default: "",
+    },
+    landing: {
+      type: landingSchema,
+      default: () => ({}),
+    },
+    userEmails: [
+      {
+        type: String,
+      },
+    ],
+    subscriptionId: {
+      type: String,
+    },
+    clients: [
+      {
+        id: mongoose.Schema.Types.ObjectId,
+        name: String,
+        email: String,
+        phoneNumber: String,
+        addedpromotions: [
+          {
+            promotion: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Promotion",
+              required: true,
+            },
+            addedDate: {
+              type: Date,
+              default: Date.now,
+            },
+            endDate: {
+              type: Date,
+            },
+            actualVisits: {
+              type: Number,
+              default: 0,
+            },
+            pointsEarned: {
+              type: Number,
+              default: 0,
+            },
+            status: {
+              type: String,
+              enum: ["Active", "Redeemed", "Expired", "Pending"],
+              default: "Active",
+            },
+            redeemCount: {
+              type: Number,
+              default: 0,
+            },
+            visitDates: [
+              {
+                date: { type: Date, required: true },
+                pointsAdded: {
+                  type: Number,
+                  required: function () {
+                    return this.systemType === "points";
+                  },
+                },
+                _id: false,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    promotions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Promotion",
+      },
+    ],
+    planStatus: {
+      type: String,
+      default: "free",
+      enum: ["free", "pro", "premium", "admin"],
+    },
+    planExpiration: {
+      type: Date,
+    },
+    firstEmailMarketingCompleted: {
+      type: Boolean,
+      default: false,
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    industry: {
+      type: String,
+    },
+    activeQr: {
+      type: Boolean,
+      default: true,
+    },
+    accountQr: {
+      type: String,
+      required: false,
+      unique: false,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    avatar: {
+      type: String,
+      default: "",
+    },
+    socialMedia: {
+      instagram: {
+        type: String,
+        default: "",
+      },
+      facebook: {
+        type: String,
+        default: "",
+      },
+      whatsapp: {
+        type: String,
+        default: "",
+      },
+      website: {
+        type: String,
+        default: "",
+      },
+    },
+    emailsSentCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    expirationDate: {
+      type: Date,
+      default: null,
+    },
+    phone: {
+      type: String,
+      default: "",
+    },
+    senderEmail: {
+      type: String,
+      default: "",
+    },
+    activePayer: {
+      type: Boolean,
+      default: false,
+    },
   },
-  planExpiration: { type: Date },
-  firstEmailMarketingCompleted: { type: Boolean, default: false },
-  isActive: { type: Boolean, default: false },
-  industry: { type: String },
-  activeQr: { type: Boolean, default: true },
-  accountQr: { type: String, required: false, unique: false },
-  createdAt: { type: Date, default: Date.now },
-  avatar: { type: String, default: "" },
-  googleBusiness: { type: String, default: "" },
-  socialMedia: {
-    instagram: { type: String, default: "" },
-    facebook: { type: String, default: "" },
-    whatsapp: { type: String, default: "" },
-    website: { type: String, default: "" },
-  },
-  emailsSentCount: { type: Number, default: 0, min: 0 },
-  lastEmailSentAt: { type: Date, default: null },
-  expirationDate: { type: Date, default: null },
-  phone: { type: String, default: "" },
-  senderEmail: { type: String, default: "" },
-  activePayer: { type: Boolean, default: false },
-});
+  {
+    timestamps: true,
+  }
+);
 
 // Middleware para generar el slug automáticamente
 accountSchema.pre("save", async function (next) {
+  // Generación del slug si el nombre cambia
   if (this.isModified("name")) {
     this.slug = slugify(this.name, { lower: true, strict: true });
-
-    // Verifica si el slug es único
     const existingAccount = await mongoose.models.Account.findOne({ slug: this.slug });
     if (existingAccount) {
-      // Si ya existe, añade un sufijo único al slug
       this.slug = `${this.slug}-${Date.now()}`;
     }
   }
+
+  // Si landing.name no está definido, asigna el nombre de la cuenta
+  if (!this.landing || Object.keys(this.landing).length === 0) {
+    this.landing = { name: this.name };
+  } else if (!this.landing.name) {
+    this.landing.name = this.name;
+  }
+
   next();
 });
+
+// Función para asignar landingSchema por defecto a cuentas existentes
+const assignDefaultLanding = async () => {
+  try {
+    console.log("Asignando landingSchema por defecto a cuentas existentes...");
+    const accountsToUpdate = await Account.find({ $or: [{ landing: { $exists: false } }, { "landing.name": { $exists: false } }] });
+
+    for (const account of accountsToUpdate) {
+      account.landing = account.landing || {};
+      account.landing.name = account.name || "Mi Negocio";
+      await account.save();
+    }
+
+    console.log(`${accountsToUpdate.length} cuentas actualizadas con landingSchema por defecto.`);
+  } catch (error) {
+    console.error("Error al asignar landingSchema por defecto:", error);
+  }
+};
 
 // Método adicional para loggear el email enviado
 accountSchema.methods.logEmailSent = async function () {
@@ -175,5 +312,6 @@ const Account = mongoose.model("Account", accountSchema);
 
 // Ejecutar la función para generar slugs
 generateSlugsForAccounts();
+assignDefaultLanding();
 
 module.exports = Account;

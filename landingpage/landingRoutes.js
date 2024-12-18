@@ -17,7 +17,7 @@ router.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
     console.log("🚀 ~ router.get ~ slug:", slug);
-    const account = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landingLinks promotions");
+    const account = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landing landingLinks promotions");
 
     if (!account) {
       return res.status(404).json({ error: "Cuenta no encontrada" });
@@ -278,11 +278,12 @@ router.post("/register", async (req, res) => {
     await Account.findByIdAndUpdate(accountId, {
       $addToSet: { clients: { id: updatedClient._id, name: updatedClient.name, email: updatedClient.email } },
     });
-    const account = await Account.findById(accountId);
+    const convertedId = StrToObjectId(accountId);
+    const account = await Account.findById(convertedId);
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     sendRegisterEmail(email, account);
-    logAction(email, "login", "Registro y login exitoso");
+    logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${account.name}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
@@ -315,10 +316,10 @@ router.post("/login", async (req, res) => {
 
     // Add any new promotions for the account
     const updatedClient = await addPromotionsToClient(client, accountId, null);
-
+    const account = await Account.findById(accountId);
     // Create JWT token
-    const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "300h" });
-    logAction(email, "login", "Login exitoso");
+    const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
+    logAction(email, "login", `Login de ${client.name} exitoso en ${account.name}`);
     return res.status(200).json({
       message: "Login exitoso",
       token,
@@ -423,7 +424,7 @@ router.post("/redeem-hot-promotion", async (req, res) => {
     const account = await Account.findById(convertedAccountId);
     await client.save();
     sendRedemptionEmail(client.email, promotion.title, account);
-    logAction(client.email, "redeem", `Redeem promotion: ${addedPromotion.title}`);
+    logAction(client.email, "Canje", `Canje de promoción: ${promotion.title}, en ${account.name}`);
     res.status(200).json({
       message: "Promoción canjeada exitosamente",
       promotion: addedPromotion,
@@ -486,7 +487,8 @@ router.post("/scan-qr-points", async (req, res) => {
     });
 
     await client.save();
-    logAction(client.email, "scan", `Point added: ${addedPromotion.title}`);
+    const account = await Account.findOne({ accountQr: accountQr });
+    logAction(client.email, "scan", `Punto añadido: ${addedPromotion.title}, en ${account.name}`);
 
     res.status(200).json({
       message: "Punto añadido exitosamente",
@@ -574,7 +576,7 @@ router.post("/redeem-promotion-reward", async (req, res) => {
       await client.save();
       await promotion.save();
       await sendRedemptionEmail(client.email, reward.description, account);
-      logAction(client.email, "redeem", `Redeem promotion: ${addedPromotion.title}`);
+      logAction(client.email, "Canje", `Promocion canjeada: ${addedPromotion.title}, en ${account.name}`);
 
       return res.status(200).json({
         message: "Visita canjeada exitosamente",
@@ -611,7 +613,7 @@ router.post("/redeem-promotion-reward", async (req, res) => {
       // Save client updates
       await client.save();
       await promotion.save();
-      logAction(client.email, "redeem", `Redeem promotion: ${reward.description}`);
+      logAction(client.email, `Canje de recompensa - Puntos ${reward.points}`, `Recompensa: ${reward.description}, en ${account.name}`);
       return res.status(200).json({
         message: "Recompensa canjeada exitosamente",
         pointsRemaining: clientPromotion.pointsEarned,
@@ -705,7 +707,7 @@ router.post("/redeem-points", async (req, res) => {
 
     // Save client updates
     await client.save();
-    logAction(client.email, "earned", `Punto añadido: ${reward.description}`);
+    logAction(client.email, "Punto añadido", `Punto añadido: ${existingPromotionData.title}, en ${account.name}`);
     res.status(200).json({
       message: "Puntos añadidos exitosamente",
       pointsEarned: addedPromotion.pointsEarned,
