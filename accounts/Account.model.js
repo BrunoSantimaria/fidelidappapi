@@ -33,7 +33,7 @@ const landingSchema = new mongoose.Schema(
     },
     colorPalette: {
       type: String,
-      enum: ["dark-slate", "ocean-breeze", "forest-green", "sunset-orange", "royal-purple", "midnight-blue"],
+
       default: "dark-slate",
     },
     googleBusiness: {
