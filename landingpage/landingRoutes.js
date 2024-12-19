@@ -282,8 +282,8 @@ router.post("/register", async (req, res) => {
     const account = await Account.findById(convertedId);
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
-    sendRegisterEmail(email, account);
-    logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${account.name}`);
+  await  sendRegisterEmail(email, account);
+    await logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${account.name}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
