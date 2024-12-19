@@ -88,7 +88,7 @@ const sendRegisterEmail = async (clientEmail, account) => {
                 <a href="${process.env.BASE_URL}/landing/${account.slug}" class="button">Ver Promociones</a>
               </div>
               <div class="footer">
-                <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
+                <img src="${logoUrl}" alt="FidelidApp Logo" height="150">
                 <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
               </div>
             </div>
@@ -105,6 +105,16 @@ const sendRegisterEmail = async (clientEmail, account) => {
 };
 
 const sendRedemptionEmail = async (clientEmail, promotionTitle, account, clientId) => {
+      const { slug } = account;
+    let logoUrl;
+    if (slug === "utopia-restobar") {
+      logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1734639417/Recurso_1-removebg_vgn27a.png";
+    } else if (account.logo) {
+      logoUrl = account.logo;
+    } else {
+      logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+    }
+
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
     const msg = {
@@ -179,7 +189,7 @@ const sendRedemptionEmail = async (clientEmail, promotionTitle, account, clientI
                 <a href="${process.env.BASE_URL}/landing/${account.slug}/" class="button">Ver Promociones</a>
               </div>
               <div class="footer">
-                <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
+                <img src="${logoUrl}" alt="FidelidApp Logo" height="150">
                 <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
               </div>
             </div>
