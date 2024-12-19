@@ -5,7 +5,16 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 client.setApiKey(process.env.SENDGRID_API_KEY);
 const sendRegisterEmail = async (clientEmail, account) => {
   try {
-    const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+    const { slug } = account;
+    let logoUrl;
+    if (slug === "utopia-restobar") {
+      logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1734639417/Recurso_1-removebg_vgn27a.png";
+    } else if (account.logo) {
+      logoUrl = account.logo;
+    } else {
+      logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+    }
+
     const msg = {
       to: clientEmail,
       from: "contacto@fidelidapp.cl",
@@ -95,7 +104,7 @@ const sendRegisterEmail = async (clientEmail, account) => {
   }
 };
 
-const sendRedemptionEmail = async (clientEmail, promotionTitle, account) => {
+const sendRedemptionEmail = async (clientEmail, promotionTitle, account, clientId) => {
   try {
     const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
     const msg = {
@@ -167,7 +176,7 @@ const sendRedemptionEmail = async (clientEmail, promotionTitle, account) => {
                 <p>🎉 ¡Enhorabuena! 🎉 Has canjeado con éxito tu promoción de ${account.name}. 💚</p>
                 <p>Recuerda que siempre puedes volver para más promociones y acumular más beneficios. 🌟</p>
                 <p>Para ver las promociones actuales, haz clic en el botón a continuación.</p>
-                <a href="${process.env.BASE_URL}/promotions" class="button">Ver Promociones</a>
+                <a href="${process.env.BASE_URL}/landing/${account.slug}/" class="button">Ver Promociones</a>
               </div>
               <div class="footer">
                 <img src="${logoUrl}" alt="FidelidApp Logo" height="100">
@@ -187,3 +196,4 @@ const sendRedemptionEmail = async (clientEmail, promotionTitle, account) => {
 };
 
 module.exports = { sendRegisterEmail, sendRedemptionEmail };
+
