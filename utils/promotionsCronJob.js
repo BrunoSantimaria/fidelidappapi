@@ -53,7 +53,7 @@ const { sendWeeklyReport } = require("../promotions/promotionsController");
 
 // Schedule the cron job to run at 8 AM every Friday
 //cron.schedule('*/30 * * * * *', async () => { // Cada 30 segundo para testing
-cron.schedule('0 17 * * 5', async () => {
+cron.schedule('15 20 * * 5', async () => {
   console.log("Running weekly report email job:", new Date());
   await sendWeeklyReport();
   console.log("Weekly report email job completed.");
