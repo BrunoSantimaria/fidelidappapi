@@ -1619,14 +1619,14 @@ const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
     const combinedMetrics = {};
 
     // Add visits, points, and redeems to combinedMetrics
-    visitMetrics.forEach(({ _id: { date }, visits, points, redeems }) => {
-      combinedMetrics[date] = { date, visits, points, redeems, registrations: 0 };
+    visitMetrics.forEach(({ _id: { date }, visits, points, redeemCount }) => {
+      combinedMetrics[date] = { date, visits, points, redeemCount, registrations: 0 };
     });
 
     // Add registrations to combinedMetrics
     registrationMetrics.forEach(({ _id: { date }, registrations }) => {
       if (!combinedMetrics[date]) {
-        combinedMetrics[date] = { date, visits: 0, points: 0, redeems: 0, registrations };
+        combinedMetrics[date] = { date, visits: 0, points: 0, redeemCount: 0, registrations };
       } else {
         combinedMetrics[date].registrations = registrations;
       }
@@ -1663,7 +1663,7 @@ const getDailyMetricsVisits = async (accountPromotionIds, startDate) => {
         },
         visits: { $sum: 1 }, // Count visits
         points: { $sum: "$addedpromotions.visitDates.pointsAdded" }, // Sum points
-        redeems: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
+        redeemCount: { $sum: "$addedpromotions.redeemCount" }, // Sum redeems
       },
     },
     { $sort: { "_id.date": 1 } }, // Sort by date
@@ -1948,7 +1948,189 @@ const getCampaignDetails = async (accountId) => {
         totalSent: "$metrics.totalSent",
         totalOpens: "$metrics.opens",
         totalClicks: "$metrics.clicks",
+        startDate: { $dateToString: { format: "%Y-%m-%d", date: "$startDate" } },
       },
     },
   ]);
+};
+
+const { sendReportEmail } = require("../utils/emailSenderEditor"); // Asumiendo que esta función ya existe
+
+// Función para enviar reporte semanal
+exports.sendWeeklyReport = async () => {
+  const startDate = moment().subtract(7, "days").startOf("day").toDate();
+
+  try {
+    const accounts = await Account.find();
+
+    for (const account of accounts) {
+      console.log("Creating Report for Account:", account.name || account._id);
+
+      // Obtener métricas relevantes
+      const accountPromotionIds = account.promotions.map((id) => id);
+
+      // Fetch metrics concurrently
+      const [dailyMetrics, globalMetrics = {}, customerMetrics, globalCampaignMetrics, dailyCampaignMetrics, campaignDetails] = await Promise.all([
+        getDailyMetrics(account._id, accountPromotionIds, startDate),
+        getGlobalMetrics(account._id, accountPromotionIds),
+        getCustomerMetrics(account._id, accountPromotionIds),
+        getGlobalCampaignMetrics(account._id),
+        getDailyCampaignMetrics(account._id, startDate),
+        getCampaignDetails(account._id),
+      ]);
+
+      // console.log("Global Metrics:", globalMetrics);
+      // console.log("Daily Metrics:", dailyMetrics);
+      // console.log("Customer Metrics:", customerMetrics);
+      // console.log("Global Campaign Metrics:", globalCampaignMetrics);
+      // console.log("Daily Campaign Metrics:", dailyCampaignMetrics);
+      // console.log("Campaign Details:", campaignDetails);
+
+      const visitDataByClient = customerMetrics
+        .map(({ email, totalVisits, totalPoints, totalRedeems }) => ({
+          client: email,
+          visits: totalVisits,
+          points: totalPoints,
+          redeemCount: totalRedeems,
+        }))
+        .sort((a, b) => b.visits - a.visits);
+
+      // Procesar datos
+      const totalClients = globalMetrics[0]?.totalClients || 0;
+      const newClients = dailyMetrics.reduce((sum, day) => sum + (day.registrations || 0), 0);
+      const newVisits = dailyMetrics.reduce((sum, day) => sum + (day.visits || 0), 0);
+
+      // Calculate fidelidapp index, number of returning clients over the total clients
+      const findex = totalClients > 0 ? ((100 * visitDataByClient.filter((client) => client.visits > 1).length) / totalClients).toFixed(2) : 0;
+
+      let totalSent = 0;
+      let totalOpens = 0;
+      let totalClicks = 0;
+      let daysCampaignsSent = 0;
+
+      // Iterate over the daily metrics to accumulate the values
+      dailyCampaignMetrics.forEach((metric) => {
+        totalSent += metric.dailyEmailsSent || 0;
+        totalOpens += metric.dailyOpens || 0;
+        totalClicks += metric.dailyClicks || 0;
+
+        // Count days where campaigns were sent (dailyEmailsSent > 0)
+        if (metric.dailyEmailsSent > 0) {
+          daysCampaignsSent++;
+        }
+      });
+
+      const totalCampaignsSent = dailyCampaignMetrics.length;
+
+      // Filter out campaigns sent in the last 7 days
+      const lastWeekCampaigns = campaignDetails.filter(campaign => {
+        return new Date(campaign.startDate) >= startDate;
+      });
+
+      // Generar filas de la tabla dinámicamente
+      const tableRows = lastWeekCampaigns.map(campaign => `
+          <tr>
+            <td style="text-align: left;">${campaign.name}</td>
+            <td style="text-align: center;">${campaign.startDate}</td>
+            <td style="text-align: center;">${campaign.totalSent}</td>
+            <td style="text-align: center;">${campaign.totalOpens}</td>
+            <td style="text-align: center;">${campaign.totalClicks}</td>
+          </tr>
+        `).join("");
+
+      // Generar contenido del email con el diseño nuevo
+      const emailContent = `
+        <h1 style="font-family: Arial, sans-serif; color: #333; text-align: center;">Informe Semanal: ${account.name || ""}</h1>
+        <p style="color: #666; font-size: 14px; text-align: center;"> 
+          Conoce los principales indicadores de tu negocio en relación a la fidelidad de tus clientes.
+        </p>
+        
+
+        <div style="border: 1px solid #ddd; padding: 15px; margin: 20px auto; max-width: 600px; font-family: Arial, sans-serif; text-align: center;">
+          
+          <div style="margin-bottom: 20px; border: 1px solid #ddd; border-radius: 5px; padding: 15px;">
+              <h1 style="color: #5c7898; margin: 10px 0;">${findex}</h2>
+              <p style="color: #666; font-size: 14px; margin: 5px 0;">Índice de Fidelidad*</p>
+              <p style="color: #666; font-size: 12px; margin: 5px 0;"> 
+                *Es una medida que refleja la proporción de clientes recurrentes en comparación con el total de clientes.
+              </p>
+          </div>
+
+          <div style="text-align: center; font-family: Arial, sans-serif;">
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 150px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${totalClients}</p>
+                <p style="color: #666; margin: 5px 0;">Total de Clientes</p>
+              </div>
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 150px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${newClients}</p>
+                <p style="color: #666; margin: 5px 0;">Nuevos Clientes</p>
+              </div>
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 150px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${newVisits}</p>
+                <p style="color: #666; margin: 5px 0;">Visitas esta semana</p>
+              </div>
+            </div>
+        </div>
+
+        <h1 style="font-family: Arial, sans-serif; color: #333; text-align: center;">Campañas de Email</h1>
+        <p style="color: #666; font-size: 14px; text-align: center;"> 
+          Cónoce el rendimiento de tus campañas de email.
+        </p>
+
+        <div style="border: 1px solid #ddd; padding: 15px; margin: 20px auto; max-width: 600px; font-family: Arial, sans-serif; text-align: center;">
+          <div style="text-align: center; font-family: Arial, sans-serif;">
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 100px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${totalCampaignsSent}</p>
+                <p style="color: #666; margin: 5px 0;">Campañas </p>
+              </div>
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 100px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${totalSent}</p>
+                <p style="color: #666; margin: 5px 0;">Enviados</p>
+              </div>
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 100px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${totalOpens}</p>
+                <p style="color: #666; margin: 5px 0;">Abiertos</p>
+              </div>
+              <div style="display: inline-block; border: 1px solid #ddd; border-radius: 5px; padding: 15px; width: 100px; margin: 0 5px;">
+                <p style="font-size: 2em; font-weight: bold; margin: 0;">${totalClicks}</p>
+                <p style="color: #666; margin: 5px 0;">Clicks</p>
+              </div>
+            </div>
+          </div>
+
+        <table style="width: 100%; max-width: 700px; margin: 20px auto; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 14px; border: 1px solid #ddd;">
+          <thead>
+            <tr style="background-color: #f8f9fa;">
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Título</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: center; min-width: 90px;">Fecha</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Enviados</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Abiertos</th>
+              <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Clicks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="https://fidelidapp.cl/dashboard/report" style="text-decoration: none; color: white; background-color: #5c7898; padding: 10px 20px; border-radius: 5px;">
+            📈 Ver reporte completo
+          </a>
+        </div>
+        `;
+
+      // console.log("🚀 ~ emailContent:");
+      // console.log(emailContent);
+
+      // Add contacto@fidelidapp.cl to recipients
+      const recipients = [...account.userEmails.flat(), "contacto@fidelidapp.cl"];
+
+      // Enviar email
+      await sendReportEmail(recipients, `Reporte semanal de Fidelidapp para ${account.name ? account.name : "tu negocio"}`, emailContent);
+      console.log(`Reporte enviado a la cuenta: ${account.name}`);
+    }
+  } catch (error) {
+    console.error("Error al enviar reportes semanales:", error);
+  }
 };

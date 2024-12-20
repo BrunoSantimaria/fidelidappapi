@@ -101,4 +101,46 @@ const sendMarketingEmailEditor = async ({ to, subject, template, from, campaignI
   }
 };
 
-module.exports = { sendMarketingEmailEditor };
+const sendReportEmail = async (recipientEmail, subject, body) => {
+  try {
+    console.log("Preparando envío de email a:", recipientEmail);
+
+    const trackingPixel = `
+      <img src="${process.env.API_URL}/track/" 
+           alt="" 
+           width="1" 
+           height="1" 
+           style="display:none !important;" />
+    `;
+
+    const msg = {
+      to: recipientEmail,
+      from: "contacto@fidelidapp.cl",
+      subject,
+      html: body + trackingPixel,
+
+      tracking_settings: {
+        click_tracking: { enable: true },
+        open_tracking: { enable: true },
+        subscription_tracking: {
+          enable: true,
+          text: "Si no deseas recibir más correos, haz clic aquí para cancelar tu suscripción.",
+          html: `<p style="text-align: center; font-size: 12px; color: #666;">Si no deseas recibir más correos, haz clic <a href="{{{unsubscribe}}}" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.</p>`,
+        },
+      },
+
+      asm: undefined,
+    };
+
+    const mainEmailResponse = await sgMail.send(msg);
+    return mainEmailResponse;
+
+  }
+
+  catch (error) {
+    console.error("Error en sendReportEmail:", error);
+    throw error;
+  }
+};
+
+module.exports = { sendMarketingEmailEditor, sendReportEmail };

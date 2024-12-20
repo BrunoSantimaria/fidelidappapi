@@ -6,7 +6,6 @@ const Promotion = require("../promotions/promotions.model"); // Adjust the path 
 // Cron job: Runs every day 4 AM Server Time (UTC ?)
 cron.schedule("0 4 * * *", async () => {
     console.log("Running daily promotion status update...");
-
     try {
         const today = new Date();
         const currentDayOfWeek = today.getDay() || 7; // Sunday (0) becomes 7
@@ -48,3 +47,15 @@ cron.schedule("0 4 * * *", async () => {
         console.error("Error updating promotion statuses:", err);
     }
 });
+
+
+const { sendWeeklyReport } = require("../promotions/promotionsController");
+
+// Schedule the cron job to run at 8 AM every Friday
+//cron.schedule('*/30 * * * * *', async () => { // Cada 30 segundo para testing
+cron.schedule('0 17 * * 5', async () => {
+  console.log("Running weekly report email job:", new Date());
+  await sendWeeklyReport();
+  console.log("Weekly report email job completed.");
+});
+

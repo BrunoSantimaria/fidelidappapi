@@ -189,4 +189,22 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
   }
 };
 
+// Cron job function to send summary email
+// const sendReportEmail = async (recipientEmail, subject, body) => {
+//   try {
+//     const msg = {
+//       to: recipientEmail, // Replace with recipient email
+//       from: "contacto@fidelidapp.cl", // Verified SendGrid sender email
+//       subject: subject,
+//       html: body,
+//     };
+
+//     await sgMail.send(msg);
+//     console.log(`Report email sent to ${recipientEmail}`);
+//   } catch (error) {
+//     console.error("Error sending report email:", error.response?.body || error.message);
+//   }
+// };
+
+
 module.exports = { sendMarketingEmail, sendAgendaEmail };
