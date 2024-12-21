@@ -1962,7 +1962,7 @@ exports.sendWeeklyReport = async () => {
 
   try {
     const accounts = await Account.find();
-
+    console.log("Accounts found:", accounts.length);
     for (const account of accounts) {
       console.log("Creating Report for Account:", account.name || account._id);
 
@@ -1986,7 +1986,7 @@ exports.sendWeeklyReport = async () => {
       // console.log("Daily Campaign Metrics:", dailyCampaignMetrics);
       // console.log("Campaign Details:", campaignDetails);
 
-      const visitDataByClient = customerMetrics
+      const visitDataByClient = await customerMetrics
         .map(({ email, totalVisits, totalPoints, totalRedeems }) => ({
           client: email,
           visits: totalVisits,
@@ -1996,9 +1996,9 @@ exports.sendWeeklyReport = async () => {
         .sort((a, b) => b.visits - a.visits);
 
       // Procesar datos
-      const totalClients = globalMetrics[0]?.totalClients || 0;
-      const newClients = dailyMetrics.reduce((sum, day) => sum + (day.registrations || 0), 0);
-      const newVisits = dailyMetrics.reduce((sum, day) => sum + (day.visits || 0), 0);
+      const totalClients = await globalMetrics[0]?.totalClients || 0;
+      const newClients = await dailyMetrics.reduce((sum, day) => sum + (day.registrations || 0), 0);
+      const newVisits = await dailyMetrics.reduce((sum, day) => sum + (day.visits || 0), 0);
 
       // Calculate fidelidapp index, number of returning clients over the total clients
       const findex = totalClients > 0 ? ((100 * visitDataByClient.filter((client) => client.visits > 1).length) / totalClients).toFixed(2) : 0;
@@ -2028,7 +2028,7 @@ exports.sendWeeklyReport = async () => {
       });
 
       // Generar filas de la tabla dinámicamente
-      const tableRows = lastWeekCampaigns.map(campaign => `
+      const tableRows = await lastWeekCampaigns.map(campaign => `
           <tr>
             <td style="text-align: left;">${campaign.name}</td>
             <td style="text-align: center;">${campaign.startDate}</td>
@@ -2123,12 +2123,18 @@ exports.sendWeeklyReport = async () => {
       // console.log("🚀 ~ emailContent:");
       // console.log(emailContent);
 
-      // Add contacto@fidelidapp.cl to recipients
-      const recipients = [...account.userEmails.flat(), "contacto@fidelidapp.cl"];
+      // Initialize recipients with the emails from account.userEmails
+      let recipients = [...account.userEmails.flat()];
+
+      // Add contacto@fidelidapp.cl to recipients only if it isn't already included
+      if (!recipients.includes("contacto@fidelidapp.cl")) {
+        recipients.push("contacto@fidelidapp.cl");
+      }
 
       // Enviar email
       await sendReportEmail(recipients, `Reporte semanal de Fidelidapp para ${account.name ? account.name : "tu negocio"}`, emailContent);
-      console.log(`Reporte enviado a la cuenta: ${account.name}`);
+      console.log("Email enviado a: ", recipients);
+
     }
   } catch (error) {
     console.error("Error al enviar reportes semanales:", error);
