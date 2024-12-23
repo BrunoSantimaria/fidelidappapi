@@ -292,21 +292,27 @@ const updateAccount = async (req, res) => {
       return res.status(400).json({ error: "Account ID is required." });
     }
 
+    // Find the account but don't modify the landing menu structure
     const account = await Account.findById(accountId);
     if (!account) {
       return res.status(404).json({ error: "Account not found" });
     }
-    if (settings.senderEmail) account.senderEmail = settings.senderEmail;
-    if (settings.phone) account.phone = settings.phone;
-    if (settings.name) account.name = settings.name;
-    await account.save();
+
+    // Only update the specific fields we want to change
+    const updateFields = {};
+    if (settings.senderEmail) updateFields.senderEmail = settings.senderEmail;
+    if (settings.phone) updateFields.phone = settings.phone;
+    if (settings.name) updateFields.name = settings.name;
+
+    // Use findByIdAndUpdate to update only specific fields
+    const updatedAccount = await Account.findByIdAndUpdate(accountId, { $set: updateFields }, { new: true, runValidators: false });
 
     if (settings.senderEmail) {
       const senderData = {
         from_email: settings.senderEmail,
-        from_name: account.name || "Nombre del negocio",
+        from_name: updatedAccount.name || "Nombre del negocio",
         reply_to: settings.senderEmail,
-        nickname: account.name || "Nombre del negocio",
+        nickname: updatedAccount.name || "Nombre del negocio",
         address: "Dirección del negocio",
         city: "Ciudad",
         state: "CL",
@@ -324,13 +330,10 @@ const updateAccount = async (req, res) => {
       });
     }
 
-    // Actualizar otros campos de la cuenta
-
     res.status(200).json({ message: "Account settings saved" });
   } catch (error) {
     console.error("Error saving account settings:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
-
 module.exports = { getLandingSettings, addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload, updateAccount };
