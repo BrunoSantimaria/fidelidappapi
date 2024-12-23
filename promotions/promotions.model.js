@@ -38,9 +38,7 @@ const promotionSchema = new mongoose.Schema(
     },
     visitsRequired: {
       type: Number,
-      required: function () {
-        return this.systemType === "visits";
-      },
+      required: false,
     },
     benefitDescription: {
       type: String,
@@ -80,7 +78,7 @@ const promotionSchema = new mongoose.Schema(
       type: Date,
     },
     endDate: {
-      type: Date
+      type: Date,
     },
     status: {
       type: String,

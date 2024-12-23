@@ -5,7 +5,6 @@ exports.getAllCampaigns = async (req, res) => {
   try {
     // Cambiar params por query
     const accountId = req.query.accountId;
-    console.log("AccountId recibido:", accountId);
 
     // Obtener campañas activas
     const activeCampaigns = await Campaign.find({
@@ -41,7 +40,6 @@ exports.getAllCampaigns = async (req, res) => {
       })),
     });
   } catch (error) {
-    console.error("Error al obtener campañas:", error);
     res.status(500).json({ error: "Error al obtener las campañas" });
   }
 };

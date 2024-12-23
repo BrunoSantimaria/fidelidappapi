@@ -610,12 +610,6 @@ exports.handleWebhookEvent = async (req, res) => {
           if (campaign) {
             campaign.metrics.unsubscribes = (campaign.metrics.unsubscribes || 0) + 1;
             await campaign.save();
-
-            console.log("Métricas actualizadas después de desuscripción:", {
-              campaignId: campaign._id,
-              email: event.email,
-              metrics: campaign.metrics,
-            });
           } else {
           }
 
@@ -631,11 +625,6 @@ exports.handleWebhookEvent = async (req, res) => {
               account.clients[clientIndex].unsubscribed = true;
               account.clients[clientIndex].unsubscribedAt = new Date();
               await account.save();
-
-              console.log("Cliente marcado como desuscrito:", {
-                email: event.email,
-                accountId: account._id,
-              });
             }
           }
         } catch (error) {

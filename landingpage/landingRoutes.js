@@ -16,7 +16,7 @@ const getChileanDateTime = () => {
 router.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
-    console.log("🚀 ~ router.get ~ slug:", slug);
+
     const account = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landing landingLinks promotions");
 
     if (!account) {
@@ -46,26 +46,19 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
 
     // Intentar agregar promociones al cliente
     if (email && accountId) {
-      console.log("➡️ Ejecutando addPromotionsToClient con email:", email, "y accountId:", accountId);
       const client = await Client.findById(StrToObjectId(email));
       await addPromotionsToClient(client, null, slug);
-      console.log("✔️ addPromotionsToClient ejecutado con éxito");
     } else {
       console.log("⚠️ addPromotionsToClient no ejecutado porque falta email o accountId");
     }
 
-    // Buscar la cuenta por el slug
-    console.log("🔍 Buscando cuenta con slug:", slug);
     const account = await Account.findOne({ slug });
     if (!account) {
-      console.log("❌ Cuenta no encontrada para slug:", slug);
       return res.status(404).json({ error: "Cuenta no encontrada" });
     }
-    console.log("✔️ Cuenta encontrada -> ID:", account._id);
 
     // Obtener IDs de promociones asociadas a la cuenta
     const accountPromotionIds = account.promotions.map((promoId) => StrToObjectId(promoId));
-    console.log("🔗 Promociones asociadas a la cuenta (IDs):", accountPromotionIds);
 
     // Preparar query para buscar cliente
     const _id = email ? StrToObjectId(email) : null;
@@ -78,10 +71,9 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
           _id: new mongoose.Types.ObjectId(clientId),
           addedAccounts: { $elemMatch: { accountId: StrToObjectId(account._id) } },
         };
-    console.log("🔍 Query para buscar cliente:", query);
 
     // Buscar cliente
-    console.log("🔍 Buscando cliente con ID:", _id || clientId);
+
     const client = await Client.findById(_id).populate({
       path: "addedpromotions.promotion",
       model: "Promotion",
@@ -107,7 +99,7 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
 
     // Filtrar promociones activas de la cuenta
     console.log("🔍 Filtrando promociones activas de la cuenta...");
-    const now = new Date();
+    const now = getChileanDateTime();
     const activePromotions = account.promotions.filter((promo) => {
       return (!promo.startDate || promo.startDate <= now) && (!promo.endDate || promo.endDate >= now) && promo.status === "active";
     });
@@ -158,10 +150,8 @@ const addPromotionsToClient = async (client, accountId, slug) => {
   // Buscar la cuenta según accountId o slug
   if (accountId) {
     account = await Account.findById(accountId).populate("promotions");
-    console.log("🚀 ~ addPromotionsToClient ~ Buscando cuenta por accountId:", accountId);
   } else if (slug) {
     account = await Account.findOne({ slug: slug }).populate("promotions");
-    console.log("🚀 ~ addPromotionsToClient ~ Buscando cuenta por slug:", slug);
   }
 
   // Validar si la cuenta fue encontrada
@@ -195,7 +185,7 @@ const addPromotionsToClient = async (client, accountId, slug) => {
     if (!existingPromotion) {
       clientNew.addedpromotions.push({
         promotion: promotion._id,
-        addedDate: new Date(),
+        addedDate: getChileanDateTime(),
         endDate: promotion.endDate,
         actualVisits: 0,
         pointsEarned: 0,
@@ -282,7 +272,7 @@ router.post("/register", async (req, res) => {
     const account = await Account.findById(convertedId);
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
-  await  sendRegisterEmail(email, account);
+    await sendRegisterEmail(email, account);
     await logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${account.name}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
@@ -401,10 +391,10 @@ router.post("/redeem-hot-promotion", async (req, res) => {
     }
 
     addedPromotion.status = "Redeemed";
-    addedPromotion.lastRedeemDate = today;
+    addedPromotion.lastRedeemDate = getChileanDateTime();
     addedPromotion.redeemCount += 1;
     addedPromotion.visitDates.push({
-      date: new Date(),
+      date: getChileanDateTime(),
       pointsAdded: 0,
     });
     // If promotion is recurrent, reset to Active for next day
@@ -474,7 +464,7 @@ router.post("/scan-qr-points", async (req, res) => {
 
     // Record visit
     addedPromotion.visitDates.push({
-      date: new Date(),
+      date: getChileanDateTime(),
       pointsAdded: pointsToAdd,
     });
 
@@ -605,7 +595,7 @@ router.post("/redeem-promotion-reward", async (req, res) => {
         type: "reward_redeemed",
         description: `Canje de recompensa: ${reward.description}`,
         amount: reward.points,
-        date: new Date(),
+        date: getChileanDateTime(),
         accountId: account._id,
         promotionId: promotionId,
       });

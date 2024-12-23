@@ -60,7 +60,6 @@ function isRelevantPromotionForClient(client, promotion) {
 // Añadir un cliente
 exports.addClient = async (req, res) => {
   const { accountId, clientData, promotionId } = req.body;
-  console.log(`Este es el accountid ${accountId}, esta es la data del cliente, y esta es la promocion ${promotionId}`);
 
   const accountIdObj = StrToObjectId(accountId);
   const email = clientData.email.trim();
@@ -128,7 +127,6 @@ exports.addClient = async (req, res) => {
 
 exports.addClientsBatch = async (req, res) => {
   const { accountId, clientsData, promotionId } = req.body;
-  console.log("Datos recibidos:", req.body);
 
   // Verificar que clientsData sea un array y no esté vacío
   if (!Array.isArray(clientsData) || clientsData.length === 0) {
@@ -157,7 +155,7 @@ exports.addClientsBatch = async (req, res) => {
 
       if (!client) {
         // Crear nuevo cliente si no existe
-        console.log(`Creando nuevo cliente: ${clientData.name} (${email})`);
+
         client = new Client({
           name: clientData.name,
           email,
@@ -168,7 +166,7 @@ exports.addClientsBatch = async (req, res) => {
         clientsToAdd.push(client);
       } else {
         // Actualizar cliente existente
-        console.log(`Actualizando cliente existente: ${client.name} (${email})`);
+
         const isClientInAccount = client.addedAccounts.some((entry) => entry.accountId.equals(accountIdObj));
         if (!isClientInAccount) {
           client.addedAccounts.push({ accountId: accountIdObj });
@@ -183,7 +181,6 @@ exports.addClientsBatch = async (req, res) => {
     // Guardar nuevos clientes en paralelo
     if (clientsToAdd.length > 0) {
       await Client.insertMany(clientsToAdd);
-      console.log(`Clientes nuevos guardados: ${clientsToAdd.map((client) => client.email)}`);
     }
 
     // Actualizar clientes existentes en paralelo
@@ -209,7 +206,6 @@ exports.addClientsBatch = async (req, res) => {
 
     // Guardar cambios en la cuenta
     await account.save();
-    console.log("Clientes agregados a la cuenta:", account.clients);
 
     return res.status(200).json({ message: "Clients added successfully", clients: account.clients });
   } catch (error) {

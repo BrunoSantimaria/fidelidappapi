@@ -1,16 +1,112 @@
 const mongoose = require("mongoose");
 const slugify = require("slugify");
+const defaultMenu = {
+  categories: [
+    {
+      name: "Para comer y picar",
+      icon: "🍽️",
+      description: "Platos abundantes para compartir",
+      items: [
+        {
+          name: "Papas fritas",
+          description: "Porción de papas fritas crujientes",
+          price: 3990,
+          image: "",
+          available: true,
+        },
+      ],
+    },
+    {
+      name: "Bebidas",
+      icon: "🥤",
+      description: "Refrescantes bebidas",
+      items: [
+        {
+          name: "Coca Cola",
+          description: "Bebida 350ml",
+          price: 1990,
+          image: "",
+          available: true,
+        },
+      ],
+    },
+  ],
+  settings: {
+    currency: "$",
+    showPrices: true,
+    allowOrdering: false,
+  },
+};
+
+const menuItemSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  price: {
+    type: Number,
+    required: true,
+  },
+  image: {
+    type: String,
+    default: "",
+  },
+  available: {
+    type: Boolean,
+    default: true,
+  },
+});
+
+// Schema for menu categories
+const menuCategorySchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  icon: {
+    type: String,
+    default: "",
+  },
+  description: {
+    type: String,
+  },
+  items: [menuItemSchema],
+});
 
 const landingSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      default: "",
+    },
+    subtitle: {
+      type: String,
+      default: "",
+    },
+    name: {
+      type: String,
+      default: "",
+    },
+    colorPalette: {
+      type: String,
+      default: "",
+    },
+    googleBusiness: {
+      type: String,
+      default: "",
+    },
     card: {
       type: {
         type: String,
-        enum: ["link", "view_on_site"],
-        default: "view_on_site",
+        enum: ["link", "view_on_site", "menu"],
+        default: "menu",
       },
       content: {
-        type: [String], // Array of image URLs or external link
+        type: [String],
         default: [],
       },
       title: {
@@ -18,32 +114,30 @@ const landingSchema = new mongoose.Schema(
         default: "Ver nuestra carta",
       },
     },
-    name: {
-      type: String,
-      required: false,
-      default: "",
+    menu: {
+      categories: {
+        type: [menuCategorySchema],
+        default: () => defaultMenu.categories,
+      },
+      settings: {
+        currency: {
+          type: String,
+          default: "$",
+        },
+        showPrices: {
+          type: Boolean,
+          default: true,
+        },
+        allowOrdering: {
+          type: Boolean,
+          default: false,
+        },
+      },
     },
-    title: {
-      type: String,
-      default: "¡Regístrate y empieza a sumar puntos! 🌟 Entérate de nuestras promociones y obtén grandes beneficios 🎉",
-    },
-    subtitle: {
-      type: String,
-      default: "Entérate de nuestras promociones y obtén grandes beneficios 🎉",
-    },
-    colorPalette: {
-      type: String,
-
-      default: "dark-slate",
-    },
-    googleBusiness: {
-      type: String,
-      default: "",
-    },
+    // ... resto del schema
   },
   { timestamps: true }
 );
-
 const accountSchema = new mongoose.Schema(
   {
     name: {
@@ -232,11 +326,36 @@ accountSchema.pre("save", async function (next) {
     }
   }
 
-  // Si landing.name no está definido, asigna el nombre de la cuenta
+  // Inicializar landing con menú por defecto
   if (!this.landing || Object.keys(this.landing).length === 0) {
-    this.landing = { name: this.name };
-  } else if (!this.landing.name) {
-    this.landing.name = this.name;
+    this.landing = {
+      name: this.name,
+      card: {
+        type: "menu",
+        content: [],
+        title: "Ver nuestra carta",
+      },
+      menu: defaultMenu,
+    };
+  } else {
+    // Asegurarse de que el menú existe y tiene categorías
+    if (!this.landing.menu || !this.landing.menu.categories || this.landing.menu.categories.length === 0) {
+      this.landing.menu = defaultMenu;
+    }
+
+    // Asegurarse de que card existe
+    if (!this.landing.card) {
+      this.landing.card = {
+        type: "menu",
+        content: [],
+        title: "Ver nuestra carta",
+      };
+    }
+
+    // Asignar nombre si no existe
+    if (!this.landing.name) {
+      this.landing.name = this.name;
+    }
   }
 
   next();
@@ -309,9 +428,93 @@ const generateSlugsForAccounts = async () => {
 
 // Crear el modelo de Account
 const Account = mongoose.model("Account", accountSchema);
+accountSchema.pre("save", async function (next) {
+  // Generación del slug si el nombre cambia
+  if (this.isModified("name")) {
+    this.slug = slugify(this.name, { lower: true, strict: true });
+    const existingAccount = await mongoose.models.Account.findOne({ slug: this.slug });
+    if (existingAccount) {
+      this.slug = `${this.slug}-${Date.now()}`;
+    }
+  }
 
+  // Inicializar landing si no existe
+  if (!this.landing || Object.keys(this.landing).length === 0) {
+    this.landing = {
+      name: this.name,
+      card: {
+        type: "menu",
+        content: [],
+        title: "Ver nuestra carta",
+      },
+      menu: defaultMenu,
+    };
+  } else {
+    // Asegurarse de que el menú existe
+    if (!this.landing.menu) {
+      this.landing.menu = defaultMenu;
+    }
+    // Asegurarse de que card existe
+    if (!this.landing.card) {
+      this.landing.card = {
+        type: "menu",
+        content: [],
+        title: "Ver nuestra carta",
+      };
+    }
+    // Asignar nombre si no existe
+    if (!this.landing.name) {
+      this.landing.name = this.name;
+    }
+  }
+
+  next();
+});
+
+// Función para actualizar cuentas existentes
+const updateExistingAccounts = async () => {
+  try {
+    console.log("Actualizando menús en cuentas existentes...");
+    const accounts = await Account.find({});
+
+    console.log(`Revisando ${accounts.length} cuentas para actualizar`);
+
+    for (const account of accounts) {
+      let needsUpdate = false;
+
+      if (!account.landing?.menu?.categories || account.landing.menu.categories.length === 0) {
+        console.log(`Actualizando menú para cuenta: ${account.name}`);
+        if (!account.landing) account.landing = {};
+        account.landing.menu = defaultMenu;
+        needsUpdate = true;
+      }
+
+      if (!account.landing?.card?.type) {
+        console.log(`Actualizando card para cuenta: ${account.name}`);
+        account.landing.card = {
+          type: "menu",
+          content: [],
+          title: "Ver nuestra carta",
+        };
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await account.save();
+        console.log(`Cuenta ${account.name} actualizada con éxito`);
+      }
+    }
+
+    console.log("Actualización de cuentas completada");
+  } catch (error) {
+    console.error("Error al actualizar cuentas existentes:", error);
+  }
+};
 // Ejecutar la función para generar slugs
-generateSlugsForAccounts();
-assignDefaultLanding();
-
+const initializeDatabase = async () => {
+  await generateSlugsForAccounts();
+  await assignDefaultLanding();
+  await updateExistingAccounts();
+};
+initializeDatabase();
 module.exports = Account;

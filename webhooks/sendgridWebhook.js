@@ -6,16 +6,14 @@ exports.handleWebhook = async (req, res) => {
       const fullMessageId = event.sg_message_id;
       const baseMessageId = fullMessageId.split(".")[0];
 
-      // Encuentra o crea la campaña utilizando el sendgridMessageId
       let campaign = await Campaign.findOrCreateBySendgridId(baseMessageId, {
         name: event.campaign_name,
         subject: event.campaign_subject,
-        template: event.campaign_template, // Asumiendo que también llega el template
+        template: event.campaign_template,
         accountId: event.accountId,
         startDate: new Date(),
       });
 
-      // Aquí procesas el evento como lo haces actualmente
       switch (event.event.toLowerCase()) {
         case "processed":
           campaign.metrics.processed += 1;
@@ -55,15 +53,11 @@ exports.handleWebhook = async (req, res) => {
           console.log(`Evento no manejado: ${event.event}`);
       }
 
-      // Actualizar la campaña con las métricas procesadas
       await campaign.save();
-      console.log(`Métricas actualizadas para campaña ${campaign._id}:`, campaign.metrics);
     }
 
-    // Responder con un OK si todo sale bien
     res.status(200).send("OK");
   } catch (error) {
-    console.error("Error procesando webhook:", error);
     res.status(500).send("Error procesando webhook");
   }
 };

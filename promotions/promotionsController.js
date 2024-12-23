@@ -60,14 +60,6 @@ exports.createPromotion = async (req, res) => {
     };
 
     // Agregar visitas requeridas solo si el sistema es de visitas
-    if (req.body.systemType === "visits") {
-      // Asegurarse de que 'visitsRequired' esté presente y sea un número
-      const visitsRequired = Number(req.body.promotionRequirements.visitsRequired);
-      if (isNaN(visitsRequired)) {
-        return res.status(400).json({ error: "visitsRequired must be a valid number" });
-      }
-      promotionData.visitsRequired = visitsRequired;
-    }
 
     const promotion = new Promotion(promotionData);
 
@@ -104,7 +96,7 @@ exports.updatePromotion = async (req, res) => {
     promotion.description = description;
     promotion.promotionType = promotionType;
     promotion.promotionRecurrent = promotionRecurrent;
-    promotion.visitsRequired = visitsRequired;
+    promotion.visitsRequired = visitsRequired || 0;
     promotion.benefitDescription = benefitDescription;
     promotion.promotionDuration = promotionDuration;
     promotion.conditions = conditions;
@@ -437,7 +429,7 @@ exports.addClientToPromotion = async (req, res) => {
       setClientIdCookie(res, client._id.toString(), promotionId);
       return res.status(400).json({
         error: "Client already has this promotion",
-        clientId: client._id // Include the clientId
+        clientId: client._id, // Include the clientId
       });
     }
 
@@ -1021,11 +1013,11 @@ exports.redeemPromotion = async (req, res) => {
       promotion.status = "Active";
       promotion.actualVisits = promotion.actualVisits - pointsToRedeem;
       promotion.endDate = new Date(Date.now() + existingPromotiondata.promotionDuration * 24 * 60 * 60 * 1000);
-      promotion.lastRedeemDate = new Date();
+      promotion.lastRedeemDate = getChileanDateTime();
       promotion.redeemCount = (promotion.redeemCount || 0) + 1;
     } else {
       promotion.status = "Redeemed";
-      promotion.lastRedeemDate = new Date();
+      promotion.lastRedeemDate = getChileanDateTime();
       promotion.redeemCount = (promotion.redeemCount || 0) + 1;
     }
 
@@ -1151,8 +1143,9 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-        }" alt="FidelidApp Logo" height="100">
+              <img src="${
+                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+              }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -1269,6 +1262,7 @@ ${!existingPromotiondata.pointSystem ? `<p><strong>Visitas Requeridas:</strong> 
 
 const cron = require("node-cron");
 const { time } = require("console");
+const { getChileanDateTime } = require("../utils/getChileanDateTime.js");
 
 cron.schedule("0 0 * * *", async () => {
   try {
@@ -1351,9 +1345,6 @@ exports.getPromotionRegistrations = async (req, res) => {
 
 exports.getWeeklyVisits = async (req, res) => {
   try {
-    console.log("1. Iniciando getWeeklyVisits");
-    console.log("Email recibido:", req.email);
-
     const email = req.email;
     const user = await User.findOne({ email });
     console.log("2. Usuario encontrado:", user ? "Sí" : "No");
@@ -1872,7 +1863,6 @@ const getCustomerMetrics = async (accountId, promotionIds) => {
 //     },
 //   ]);
 // };
-
 
 const getGlobalCampaignMetrics = async (accountId) => {
   return await Campaign.aggregate([

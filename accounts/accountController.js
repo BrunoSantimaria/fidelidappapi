@@ -35,7 +35,6 @@ const upload = multer({
 
 // Añadir un usuario a la cuenta
 const addUserToAccount = async (req, res) => {
-  console.log("Adding User to account");
   try {
     let token = req.headers.authorization?.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -45,7 +44,6 @@ const addUserToAccount = async (req, res) => {
     const { accountId } = req.params;
 
     const account = await Account.findById(accountId);
-    console.log("Account", account);
 
     if (!account) {
       return res.status(404).json({ error: "Esta cuenta no existe" });
@@ -70,8 +68,6 @@ const addUserToAccount = async (req, res) => {
 
 // Refrescar el código QR de la cuenta
 const refreshQr = async (req, res) => {
-  console.log("Refreshing QR keys");
-  console.log(req.body);
   try {
     const accountId = req.body.accountId;
     const account = await Account.findById(accountId);
@@ -146,7 +142,51 @@ const fileUpload = async (req, res, next) => {
     }
   });
 };
+const getLandingSettings = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const account = await Account.findById(accountId);
+    if (!account) {
+      return res.status(404).json({ error: "Account not found" });
+    }
 
+    console.log("DEBUG - account.landing:", JSON.stringify(account.landing, null, 2));
+    console.log(account.landing);
+    // Construir landingData incluyendo todos los campos
+    const landingData = {
+      title: account.landing?.title || "",
+      subtitle: account.landing?.subtitle || "",
+      name: account.landing?.name || "",
+      colorPalette: account.landing?.colorPalette || "",
+      card: {
+        type: account.landing?.card?.type || "",
+        content: account.landing?.card?.content || [],
+        title: account.landing?.card?.title || "",
+        categories: account.landing?.card?.categories || [], // Aquí estaba el problema
+      },
+      menu: {
+        categories: account.landing?.menu?.categories || [], // Check if menu.categories exists
+        settings: account.landing?.menu?.settings || {}, // Check if menu.settings exists
+      },
+      googleBusiness: account.landing?.googleBusiness || "",
+    };
+
+    // Log de verificación
+    console.log("Verificación de campos:", {
+      title: landingData.title,
+      subtitle: landingData.subtitle,
+      name: landingData.name,
+      colorPalette: landingData.colorPalette,
+      cardCategories: landingData.card.categories?.length || 0, // Check if card.categories exists
+      menuCategories: landingData.menu.categories?.length || 0, // Check if menu.categories exists
+    });
+
+    res.status(200).json({ landing: account.landing });
+  } catch (error) {
+    console.error("❌ Error fetching landing settings:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 // Personalizar la cuenta con redes sociales y logo
 const customizeAccount = async (req, res) => {
   try {
@@ -248,7 +288,6 @@ const updateAccount = async (req, res) => {
     console.log(req.body);
     const { accountId, settings } = req.body;
 
-
     if (!accountId) {
       return res.status(400).json({ error: "Account ID is required." });
     }
@@ -294,4 +333,4 @@ const updateAccount = async (req, res) => {
   }
 };
 
-module.exports = { addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload, updateAccount };
+module.exports = { getLandingSettings, addUserToAccount, refreshQr, saveAccountSettings, customizeAccount, fileUpload, updateAccount };

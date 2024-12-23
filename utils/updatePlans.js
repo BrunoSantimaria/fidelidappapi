@@ -57,11 +57,6 @@ async function updatePlans() {
       },
     ]);
 
-    console.log(result);
-    console.log("Planes actualizados exitosamente.");
-    console.log(`${result.modifiedCount} documentos actualizados.`);
-
-    // Verifica si los planes 'admin' y 'premium' existen
     const existingPlans = await Plan.find({ planStatus: { $in: ["admin", "premium"] } });
 
     const plansToInsert = [];

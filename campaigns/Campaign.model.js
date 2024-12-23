@@ -58,19 +58,6 @@ const campaignSchema = new mongoose.Schema(
   }
 );
 
-// Middleware para logging
-campaignSchema.pre("save", function (next) {
-  if (this.isModified()) {
-    console.log("Pre-save campaign:", {
-      _id: this._id,
-      sendgridMessageId: this.sendgridMessageId,
-      status: this.status,
-      metrics: this.metrics,
-    });
-  }
-  next();
-});
-
 // Método estático para actualizar o crear campaña
 // Método estático para actualizar o crear campaña
 campaignSchema.statics.findOrCreateBySendgridId = async function (sendgridMessageId, campaignData) {
@@ -99,7 +86,6 @@ campaignSchema.statics.findOrCreateBySendgridId = async function (sendgridMessag
     await campaign.save();
     return campaign;
   } catch (error) {
-    console.error("Error en findOrCreateBySendgridId:", error);
     throw error;
   }
 };
