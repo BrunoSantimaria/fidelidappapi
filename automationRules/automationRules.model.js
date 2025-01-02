@@ -17,7 +17,7 @@ const automationRuleSchema = new mongoose.Schema({
     enum: [
       'clientInactivity',
       'promotionExpiration',
-      'registrationAnniversary',
+      'clientRegistration',
       'customDate',
       'clientBirthday',
       'accountPlanExpiration',

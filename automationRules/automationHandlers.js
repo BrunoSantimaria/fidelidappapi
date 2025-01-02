@@ -130,7 +130,64 @@ async function handlePromotionExpiration(rule) {
   }
 }
 
+async function handleclientRegistration(rule) {
+  const { account, conditionValue, subject, message } = rule;
+  console.log("Executing client registration rule:", rule.name);
+  const emailText = `<p>${message}</p>
+    <div class="content">
+      <img src="https://storage.googleapis.com/fapp_promotion_images/Fidelidapp%20How%20To.png" alt="Fidelidapp How To Guide" style="max-width: 100%; height: auto; display: block; margin: 20px auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);"/>
+      <p>Si tienes alguna duda, puedes contactarnos a contacto@fidelidapp.cl</p>
+    </div> 
+      <img src="${account.logo}" height="100"></img>`;
+
+  // Calculate the registration threshold date
+  const registrationThreshold = new Date(Date.now() - conditionValue * 24 * 60 * 60 * 1000);
+  console.log("Registration Threshold:", registrationThreshold.toISOString().split("T")[0]);
+
+  // Extract client IDs from the account
+  const clientIds = account.clients.map((client) => client.id);
+  //console.log("Client IDs:", clientIds);
+
+  // Fetch client data using the extracted IDs
+  const clients = await Client.find({ _id: { $in: clientIds } });
+
+  if (!clients || clients.length === 0) {
+    console.log("No clients found for this account.");
+    return;
+  }
+
+  for (const client of clients) {
+    console.log("Client:", client.email);
+    // Iterate over added accounts to check registration date
+    for (const addedAccount of client.addedAccounts) {
+      // Check if the accountId matches and the registration date is older than the threshold
+      if (addedAccount.accountId.toString() === account._id.toString()) {
+        const registrationDate = addedAccount._id.getTimestamp(); // Get timestamp from the ObjectId
+        console.log("Registration Date:", registrationDate.toISOString().split("T")[0]);
+
+        // Compare only the date part (ignoring time)
+        if (registrationDate.toISOString().split("T")[0] === registrationThreshold.toISOString().split("T")[0]) {
+          try {
+            // Send marketing email
+            sendMarketingEmail({
+              to: client.email,
+              subject: subject,
+              text: emailText,
+            });
+
+            console.log("Automated handleClientRegistration Email sent to " + client.email);
+          } catch (error) {
+            console.error("Error sending email to " + client.email + error);
+          }
+        }
+      }
+    }
+  }
+}
+
+
 module.exports = {
   handleClientInactivity,
   handlePromotionExpiration,
+  handleclientRegistration
 };

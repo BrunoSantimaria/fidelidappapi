@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const AutomationRule = require('./automationRules.model');
-const { handleClientInactivity, handlePromotionExpiration, handleCustomDateRule } = require('./automationHandlers');
+const { handleClientInactivity, handlePromotionExpiration, handleclientRegistration } = require('./automationHandlers');
 
 automationCronJob = cron.schedule('0 13 * * *', async () => { // Corre todos los dias a las 13 UTC 09 am Chile
 //automationCronJob = cron.schedule('*/30 * * * * *', async () => { // Cada 30 segundos
@@ -14,6 +14,9 @@ automationCronJob = cron.schedule('0 13 * * *', async () => { // Corre todos los
                         break;
                     case 'promotionExpiration':
                         await handlePromotionExpiration(rule);
+                        break;
+                    case 'clientRegistration':
+                        await handleclientRegistration(rule);
                         break;
                     default:
                         console.log(`No handler defined for condition: ${rule.condition}`);
