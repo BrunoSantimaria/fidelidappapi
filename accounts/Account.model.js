@@ -95,6 +95,10 @@ const landingSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    minPointValue: {
+      type: Number,
+      default: 15000,
+    },
     googleBusiness: {
       type: String,
       default: "",
