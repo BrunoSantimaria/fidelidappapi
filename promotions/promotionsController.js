@@ -1483,12 +1483,12 @@ exports.getDashboardMetrics = async (req, res) => {
       getCampaignDetails(account._id),
     ]);
 
-    console.log("Global Metrics:", globalMetrics);
+    //console.log("Global Metrics:", globalMetrics);
     console.log("Daily Metrics:", dailyMetrics);
-    console.log("Customer Metrics:", customerMetrics);
-    console.log("Global Campaign Metrics:", globalCampaignMetrics);
-    console.log("Daily Campaign Metrics:", dailyCampaignMetrics);
-    console.log("Campaign Details:", campaignDetails);
+    //console.log("Customer Metrics:", customerMetrics);
+    //console.log("Global Campaign Metrics:", globalCampaignMetrics);
+    //console.log("Daily Campaign Metrics:", dailyCampaignMetrics);
+    //console.log("Campaign Details:", campaignDetails);
 
     // Prepare dailyData structure
     const dailyData = {};
@@ -1603,8 +1603,11 @@ const getDailyMetrics = async (accountId, accountPromotionIds, startDate) => {
   try {
     const [visitMetrics, registrationMetrics] = await Promise.all([
       getDailyMetricsVisits(accountPromotionIds, startDate),
-      getDailyMetricsRegistrations(accountPromotionIds, startDate),
+      getDailyMetricsRegistrations(accountId, startDate),
     ]);
+
+    console.log("Visit Metrics:", visitMetrics);
+    console.log("Registration Metrics:", registrationMetrics);
 
     // Combine the two results into a single structure
     const combinedMetrics = {};
@@ -1661,7 +1664,7 @@ const getDailyMetricsVisits = async (accountPromotionIds, startDate) => {
   ]);
 };
 
-const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
+const getDailyMetricsRegistrations = async (accountId, startDate) => {
   return await Client.aggregate([
     {
       $addFields: {
@@ -1670,11 +1673,7 @@ const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
     },
     {
       $match: {
-        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
-      },
-    },
-    {
-      $match: {
+        "addedAccounts.accountId": accountId, // Match the specific accountId
         registrationDate: { $gte: startDate }, // Check if registration date is in range
       },
     },
@@ -1682,7 +1681,7 @@ const getDailyMetricsRegistrations = async (accountPromotionIds, startDate) => {
       $group: {
         _id: {
           date: {
-            $dateToString: { format: "%Y-%m-%d", date: "$registrationDate" }, // Group by registration date
+            $dateToString: { format: "%Y-%m-%d", date: "$registrationDate", timezone: "America/Santiago" }, // Group by registration date
           },
         },
         registrations: { $sum: 1 }, // Count registrations
