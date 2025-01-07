@@ -278,7 +278,7 @@ router.post("/register", async (req, res) => {
 
     // Crear un nuevo cliente si no existe
     const client = new Client({
-      name,
+      name: formatName(name),
       email: email.toLowerCase(),
       phoneNumber: phone,
       addedAccounts: [{ accountId: formattedAccountId }],
@@ -746,4 +746,17 @@ router.post("/redeem-points", async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+const formatName = (name) => {
+  return name
+    .toLowerCase()
+    .split(" ")
+    .map((word) => {
+      if (word.length === 0) return "";
+      return word[0].toUpperCase() + word.slice(1);
+    })
+    .filter((word) => word.length > 0)
+    .join(" ");
+};
+
 module.exports = router;
