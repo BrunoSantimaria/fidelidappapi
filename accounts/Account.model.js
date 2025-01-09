@@ -77,6 +77,110 @@ const menuCategorySchema = new mongoose.Schema({
   items: [menuItemSchema],
 });
 
+// Schema para las valoraciones de meseros
+const waiterRatingSchema = new mongoose.Schema(
+  {
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+// Schema para los puntos sumados por el mesero
+const waiterPointSchema = new mongoose.Schema(
+  {
+    points: {
+      type: Number,
+      required: true,
+      default: 1,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    client: {
+      name: {
+        type: String,
+        default: "",
+      },
+      email: {
+        type: String,
+        default: "",
+      },
+    },
+  },
+  { _id: false }
+);
+
+// Schema para los meseros
+const waiterSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  active: {
+    type: Boolean,
+    default: true,
+  },
+  totalPoints: {
+    type: Number,
+    default: 0,
+  },
+  ratings: [
+    {
+      rating: Number,
+      comment: String,
+      client: {
+        name: String,
+        email: String,
+      },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
+  pointsHistory: [waiterPointSchema],
+  averageRating: {
+    type: Number,
+    default: 0,
+  },
+  averagePointsPerDay: {
+    type: Number,
+    default: 0,
+  },
+  lastCalculationDate: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+// Método para calcular el promedio de ratings
+waiterSchema.methods.calculateAverageRating = function () {
+  if (this.ratings.length === 0) return 0;
+  const totalRating = this.ratings.reduce((sum, rating) => sum + rating.rating, 0);
+  return totalRating / this.ratings.length;
+};
+
+// Método para calcular el promedio de puntos por día
+waiterSchema.methods.calculateAveragePoints = function () {
+  if (this.pointsHistory.length === 0) return 0;
+
+  const now = new Date();
+  const firstPointDate = this.pointsHistory[0].date;
+  const daysDifference = Math.max(1, Math.ceil((now - firstPointDate) / (1000 * 60 * 60 * 24)));
+
+  const totalPoints = this.pointsHistory.reduce((sum, point) => sum + point.points, 0);
+  return totalPoints / daysDifference;
+};
+
+// Modificar landingSchema para incluir waiters
 const landingSchema = new mongoose.Schema(
   {
     title: {
@@ -138,10 +242,14 @@ const landingSchema = new mongoose.Schema(
         },
       },
     },
-    // ... resto del schema
+    waiters: {
+      type: [waiterSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
+
 const accountSchema = new mongoose.Schema(
   {
     name: {
@@ -432,48 +540,6 @@ const generateSlugsForAccounts = async () => {
 
 // Crear el modelo de Account
 const Account = mongoose.model("Account", accountSchema);
-accountSchema.pre("save", async function (next) {
-  // Generación del slug si el nombre cambia
-  if (this.isModified("name")) {
-    this.slug = slugify(this.name, { lower: true, strict: true });
-    const existingAccount = await mongoose.models.Account.findOne({ slug: this.slug });
-    if (existingAccount) {
-      this.slug = `${this.slug}-${Date.now()}`;
-    }
-  }
-
-  // Inicializar landing si no existe
-  if (!this.landing || Object.keys(this.landing).length === 0) {
-    this.landing = {
-      name: this.name,
-      card: {
-        type: "menu",
-        content: [],
-        title: "Ver nuestra carta",
-      },
-      menu: defaultMenu,
-    };
-  } else {
-    // Asegurarse de que el menú existe
-    if (!this.landing.menu) {
-      this.landing.menu = defaultMenu;
-    }
-    // Asegurarse de que card existe
-    if (!this.landing.card) {
-      this.landing.card = {
-        type: "menu",
-        content: [],
-        title: "Ver nuestra carta",
-      };
-    }
-    // Asignar nombre si no existe
-    if (!this.landing.name) {
-      this.landing.name = this.name;
-    }
-  }
-
-  next();
-});
 
 // Función para actualizar cuentas existentes
 const updateExistingAccounts = async () => {
@@ -514,11 +580,14 @@ const updateExistingAccounts = async () => {
     console.error("Error al actualizar cuentas existentes:", error);
   }
 };
+
 // Ejecutar la función para generar slugs
 const initializeDatabase = async () => {
   await generateSlugsForAccounts();
   await assignDefaultLanding();
   await updateExistingAccounts();
 };
+
 initializeDatabase();
+
 module.exports = Account;
