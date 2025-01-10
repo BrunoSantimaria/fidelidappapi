@@ -30,7 +30,7 @@ mongoose
   });
 
 // Resto de tu código...
-cron.schedule("0 0 */30 * *", async () => {
+cron.schedule("0 4 1 * *", async () => { 
   try {
     console.log("Checking and resetting email counts...");
 
@@ -39,6 +39,8 @@ cron.schedule("0 0 */30 * *", async () => {
     for (let account of accounts) {
       account.emailsSentCount = 0;
       account.lastEmailSentAt = null;
+      account.smsSentCount = 0;
+      account.lastSmsSentAt = null;
       await account.save();
     }
 
@@ -105,6 +107,8 @@ const webhookRoutes = require("./routes/webhook.routes");
 const { scheduleEmail } = require("./emailSender/emailController");
 const campaignRoutes = require("./campaigns/campaignRoutes");
 const landingRoutes = require("./landingpage/landingRoutes");
+const smsRoutes = require("./sms/smsRoutes");
+
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
 app.use("/api/plans/", plansRoutes);
@@ -121,6 +125,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/landing", landingRoutes);
+app.use("/api/sms", smsRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

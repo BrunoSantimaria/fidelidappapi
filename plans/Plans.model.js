@@ -28,6 +28,15 @@ const PlanSchema = new Schema({
     type: Number,
     default: 1000,
   },
+  sendSms: {
+    type: Boolean,
+    required: true,
+    default: true,
+  },
+  SmsLimit: {
+    type: Number,
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -51,6 +60,8 @@ PlanSchema.pre("save", function (next) {
     this.emailLimit = 10000;
     this.clientLimit = null;
     this.sendEmail = true;
+    this.sendSms = true;
+    this.SmsLimit = 100;
   } else if (this.planStatus === "pro2") {
     this.promotionLimit = 10;
     this.emailLimit = 10000;
@@ -66,6 +77,8 @@ PlanSchema.pre("save", function (next) {
     this.emailLimit = 10000;
     this.sendEmail = true;
     this.clientLimit = null;
+    this.sendSms = true;
+    this.SmsLimit = 100;
   }
 
   next();

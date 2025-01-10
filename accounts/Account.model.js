@@ -293,6 +293,15 @@ const accountSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    smsSentCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastsmsSentAt: {
+      type: Date,
+      default: null,
+    },
     expirationDate: {
       type: Date,
       default: null,
