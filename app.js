@@ -108,6 +108,7 @@ const { scheduleEmail } = require("./emailSender/emailController");
 const campaignRoutes = require("./campaigns/campaignRoutes");
 const landingRoutes = require("./landingpage/landingRoutes");
 const smsRoutes = require("./sms/smsRoutes");
+const waiterRoutes = require("./waiters/waiter.routes");
 
 app.use("/auth/", authRoutes);
 app.use("/api/promotions/", promotionRoutes);
@@ -126,6 +127,7 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/landing", landingRoutes);
 app.use("/api/sms", smsRoutes);
+app.use("/api/waiters", waiterRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

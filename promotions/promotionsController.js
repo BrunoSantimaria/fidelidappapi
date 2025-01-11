@@ -48,7 +48,7 @@ exports.createPromotion = async (req, res) => {
       description: req.body.promotionDetails.description,
       conditions: req.body.promotionDetails.conditions,
       promotionType: req.body.promotionDetails.promotionType,
-      promotionRecurrent: req.body.systemType === "points" ? "True" : req.body.promotionRequirements.isRecurrent ? "True" : "False", // Recurrente es siempre true si es de "points"
+      promotionRecurrent: req.body.systemType === "points" ? "True" : req.body.promotionRequirements.isRecurrent[0],
       promotionDuration: Number(req.body.promotionRequirements.promotionDuration),
       imageUrl: req.body.imageUrl || "",
       systemType: req.body.systemType, // "points" o "visits"
@@ -1985,7 +1985,7 @@ exports.sendWeeklyReport = async () => {
         .sort((a, b) => b.visits - a.visits);
 
       // Procesar datos
-      const totalClients = await globalMetrics[0]?.totalClients || 0;
+      const totalClients = (await globalMetrics[0]?.totalClients) || 0;
       const newClients = await dailyMetrics.reduce((sum, day) => sum + (day.registrations || 0), 0);
       const newVisits = await dailyMetrics.reduce((sum, day) => sum + (day.visits || 0), 0);
 
@@ -2012,12 +2012,14 @@ exports.sendWeeklyReport = async () => {
       const totalCampaignsSent = dailyCampaignMetrics.length;
 
       // Filter out campaigns sent in the last 7 days
-      const lastWeekCampaigns = campaignDetails.filter(campaign => {
+      const lastWeekCampaigns = campaignDetails.filter((campaign) => {
         return new Date(campaign.startDate) >= startDate;
       });
 
       // Generar filas de la tabla dinámicamente
-      const tableRows = await lastWeekCampaigns.map(campaign => `
+      const tableRows = await lastWeekCampaigns
+        .map(
+          (campaign) => `
           <tr>
             <td style="text-align: left;">${campaign.name}</td>
             <td style="text-align: center;">${campaign.startDate}</td>
@@ -2025,7 +2027,9 @@ exports.sendWeeklyReport = async () => {
             <td style="text-align: center;">${campaign.totalOpens}</td>
             <td style="text-align: center;">${campaign.totalClicks}</td>
           </tr>
-        `).join("");
+        `
+        )
+        .join("");
 
       // Generar contenido del email con el diseño nuevo
       const emailContent = `
@@ -2123,7 +2127,6 @@ exports.sendWeeklyReport = async () => {
       // Enviar email
       await sendReportEmail(recipients, `Reporte semanal de Fidelidapp para ${account.name ? account.name : "tu negocio"}`, emailContent);
       console.log("Email enviado a: ", recipients);
-
     }
   } catch (error) {
     console.error("Error al enviar reportes semanales:", error);

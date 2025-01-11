@@ -17,23 +17,34 @@ router.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const account = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landing landingLinks promotions");
-
-    if (!account) {
+    // Primero encontramos la cuenta sin populate para ver las referencias
+    const accountRaw = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landing landingLinks promotions");
+    if (!accountRaw) {
       return res.status(404).json({ error: "Cuenta no encontrada" });
     }
+    // Ahora buscamos todas las promociones activas de esta cuenta
+    const allPromotions = await Promotion.find({
+      _id: { $in: accountRaw.promotions },
+      status: "active",
+    });
 
-    if (!account.promotions || account.promotions.length === 0) {
-      return res.json({ ...account.toObject(), promotions: [] });
-    }
+    // Ahora hacemos la búsqueda con populate para comparar
+    const account = await Account.findOne({ slug })
+      .select("name card logo socialMedia googleBusiness landing landingLinks promotions")
+      .populate({
+        path: "promotions",
+        match: {
+          status: "active",
+        },
+      });
 
-    // Obtener las promociones asociadas a la cuenta
-    const promotionIds = account.promotions.map((id) => new mongoose.Types.ObjectId(id));
-    const promotions = await Promotion.find({ _id: { $in: promotionIds } });
-    res.json({ ...account.toObject(), promotions });
+    const accountData = account.toObject();
+    accountData.promotions = accountData.promotions || [];
+
+    res.json(accountData);
   } catch (error) {
     console.error("Error al obtener los datos:", error);
-    res.status(500).json({ error: "Error al obtener los datos del landing page" });
+    res.status(404).json({ error: "Error al obtener los datos del landing page" });
   }
 });
 router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
@@ -73,7 +84,7 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
         };
 
     // Buscar cliente
-
+    console.log("🔍 Buscando cliente con ID:", _id || clientId);
     const client = await Client.findById(_id).populate({
       path: "addedpromotions.promotion",
       model: "Promotion",
@@ -81,6 +92,7 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
         _id: { $in: accountPromotionIds }, // Filtrar solo promociones asociadas
       },
     });
+
     if (!client) {
       console.log("❌ Cliente no encontrado para ID:", _id || clientId);
       return res.status(404).json({ error: "Cliente no encontrado" });
@@ -129,10 +141,24 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
       name: client.name,
       email: client.email,
       phoneNumber: client.phoneNumber,
-      totalPoints: earnedPoints, // Usamos los puntos calculados aquí
+      totalPoints: earnedPoints,
       activities: activitiesFiltered,
-      promotions: activePromotions, // Asegúrate de que `activePromotions` esté correctamente calculado
-      addedPromotions: client.addedpromotions,
+      promotions: activePromotions,
+      addedPromotions: client.addedpromotions.filter((promo) => {
+        if (!promo.promotion) return false;
+
+        const isPromotionActive =
+          (!promo.promotion.startDate || promo.promotion.startDate <= now) &&
+          (!promo.promotion.endDate || promo.promotion.endDate >= now) &&
+          promo.promotion.status === "active";
+
+        const isRecurrent = promo.promotion.promotionRecurrent === "True";
+
+        // Verificar el estado específico del cliente
+        const isValidClientStatus = promo.status === "Active" || (promo.status === "Redeemed" && isRecurrent);
+
+        return isPromotionActive && isValidClientStatus;
+      }),
     };
     console.log("✔️ Datos de FideliCard preparados ->", fideliCardData);
 
@@ -252,7 +278,7 @@ router.post("/register", async (req, res) => {
 
     // Crear un nuevo cliente si no existe
     const client = new Client({
-      name,
+      name: formatName(name),
       email: email.toLowerCase(),
       phoneNumber: phone,
       addedAccounts: [{ accountId: formattedAccountId }],
@@ -273,7 +299,7 @@ router.post("/register", async (req, res) => {
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     await sendRegisterEmail(email, account);
-    await logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${account.name}`);
+    await logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${formatName(account.name)}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
@@ -621,14 +647,17 @@ router.post("/redeem-promotion-reward", async (req, res) => {
 
 router.post("/redeem-points", async (req, res) => {
   try {
-    const { clientEmail, promotionId, accountQr } = req.body;
+    const { clientId, accountQr, promotionId } = req.body;
+    let { clientEmail } = req.body;
     const today = getChileanDateTime();
-
+    console.log(clientId, clientEmail, promotionId, accountQr);
     // Validate input
-    if (!accountQr || !promotionId || !clientEmail) {
+    if (!accountQr || !promotionId) {
       return res.status(400).json({ error: "Datos incompletos" });
     }
-
+    if (!clientEmail && !clientId) {
+      return res.status(400).json({ error: "Debe proporcionar clientEmail o clientId" });
+    }
     // Find the promotion
     const existingPromotionData = await Promotion.findById(promotionId);
     if (!existingPromotionData) {
@@ -646,7 +675,16 @@ router.post("/redeem-points", async (req, res) => {
       console.log(account.accountQr, accountQr);
       return res.status(401).json({ error: "Qr inválido." });
     }
-    const client = await Client.findOne({ email: clientEmail });
+    let client;
+    if (clientId) {
+      client = await Client.findById(clientId);
+      if (client) {
+        clientEmail = client.email; // Asignar el email del cliente encontrado
+      }
+    } else {
+      client = await Client.findOne({ email: clientEmail });
+    }
+
     if (!client) {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
@@ -708,4 +746,17 @@ router.post("/redeem-points", async (req, res) => {
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+const formatName = (name) => {
+  return name
+    .toLowerCase()
+    .split(" ")
+    .map((word) => {
+      if (word.length === 0) return "";
+      return word[0].toUpperCase() + word.slice(1);
+    })
+    .filter((word) => word.length > 0)
+    .join(" ");
+};
+
 module.exports = router;

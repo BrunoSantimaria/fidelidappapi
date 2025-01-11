@@ -16,6 +16,10 @@ const smsCampaignSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    phoneNumbers: {
+      type: [String],
+      required: true,
+    },
     twilioMessageIds: [
       {
         type: String,
@@ -24,8 +28,8 @@ const smsCampaignSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ["in_progress", "completed", "failed"],
-      default: "in_progress",
+      enum: ["In Progress", "Completed", "Failed"],
+      default: "In Progress",
     },
     metrics: {
       delivered: { type: Number, default: 0 },

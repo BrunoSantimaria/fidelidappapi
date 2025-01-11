@@ -13,8 +13,8 @@ const client = twilio(accountSid, authToken);
 
 // Create a new SMS campaign
 const createCampaign = async (req, res) => {
-    const { name, message, phoneNumbers } = req.body;
-    console.log("Creando Campaña:", name, message, phoneNumbers);
+    const { name, message } = req.body;
+    console.log("Creando Campaña:", name, message);
 
     //User req.email to look for accountId
     const account = await Account.findOne({ userEmails: req.email });
@@ -34,8 +34,21 @@ const createCampaign = async (req, res) => {
         return res.status(400).json({ success: false, error: "SMS usage limit exceeded" });
     }
 
-    if (!name || !message || !phoneNumbers || phoneNumbers.length === 0) {
+    if (!name || !message) {
         return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
+
+    // Find all clients associated with the given accountId and having a phone number
+    const clients = await Client.find({
+        addedAccounts: { $elemMatch: { accountId: account._id } },
+        phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
+    }).select("name phoneNumber");
+
+    if (clients.length === 0) {
+        return res.status(404).json({
+            success: false,
+            message: "No clients found with a phone number for this account.",
+        });
     }
 
     try {
@@ -44,20 +57,25 @@ const createCampaign = async (req, res) => {
             name,
             message,
             twilioMessageIds: [],
+            phoneNumbers,
         });
         await campaign.save();
 
-        phoneNumbers.forEach(async (number) => {
+        clients.forEach(async (client) => {
             try {
-                // const twilioResponse = await client.messages.create({
-                //     body: message,
-                //     from: twilioPhoneNumber,
-                //     to: number,
-                //     statusCallback: `https://api.fidelidapp.cl/api/sms/status-callback`,
-                // });
+                // Replace {clientName} in the message with the actual client name
+                const personalizedMessage = message.replace("{clientName}", client.name);
 
+                const twilioResponse = await client.messages.create({
+                    body: personalizedMessage,
+                    from: twilioPhoneNumber,
+                    to: client.phoneNumber,
+                    statusCallback: `https://api.fidelidapp.cl/api/sms/status-callback`,
+                });
+                
+                console.log(`SMS sent to ${client.phoneNumber}:`, twilioResponse);
                 campaign.twilioMessageIds.push(twilioResponse.sid);
-                await campaign.save();
+                campaign.metrics.sent += 1;
 
                 const smsRecord = new Sms({
                     AccountSid: twilioResponse.accountSid,
@@ -71,11 +89,19 @@ const createCampaign = async (req, res) => {
             } catch (error) {
                 console.error(`Failed to send SMS to ${number}:`, error);
             }
-        });
+        }
+
+        );
+
+        // Update campaign status
+        campaign.status = "Completed";
+        await campaign.save();
 
         res.status(201).json({ success: true, data: campaign });
     } catch (error) {
         console.error("Error creating campaign:", error);
+        campaign.status = "Failed";
+        await campaign.save();
         res.status(500).json({ success: false, error: "Failed to create campaign" });
     }
 };
@@ -92,10 +118,33 @@ const handleStatusCallback = async (req, res) => {
             await smsRecord.save();
 
             const campaign = await SmsCampaign.findOne({ twilioMessageIds: MessageSid });
-            if (campaign) {
-                campaign.metrics[MessageStatus] = (campaign.metrics[MessageStatus] || 0) + 1;
-                await campaign.save();
+            if (!campaign) {
+                console.error(`Campaign not found for MessageSid: ${MessageSid}`);
+                return res.status(404).send("Campaign not found");
             }
+
+            // Update metrics based on the status
+            switch (MessageStatus) {
+                case "delivered":
+                    campaign.metrics.delivered += 1;
+                    break;
+                case "undelivered":
+                    campaign.metrics.undelivered += 1;
+                    break;
+                case "failed":
+                    campaign.metrics.failed += 1;
+                    break;
+                case "queued":
+                    campaign.metrics.queued += 1;
+                    break;
+                case "sent":
+                    campaign.metrics.sent += 1;
+                    break;
+                default:
+                    console.warn(`Unhandled MessageStatus: ${MessageStatus}`);
+            }
+            await campaign.save();
+
         }
 
         res.status(200).json({ success: true });
@@ -124,12 +173,8 @@ const getCampaigns = async (req, res) => {
         // Find and count all clients associated with the given accountId and having a phone number
         const totalContactsWithPhoneNumber = await Client.countDocuments({
             addedAccounts: { $elemMatch: { accountId: account._id } },
-            phoneNumber: { $ne: "" }, // Ensure phoneNumber is not empty
+            phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
         });
-
-        console.log(`Total contacts with phone number: ${totalContactsWithPhoneNumber}`);
-
-
         const campaigns = await SmsCampaign.find().sort({ startDate: -1 });
         res.status(200).json({ success: true, data: campaigns, SmsLimit: plan.SmsLimit, SmsSentCount: account.smsSentCount, totalContactsWithPhoneNumber: totalContactsWithPhoneNumber });
     } catch (error) {
@@ -139,39 +184,39 @@ const getCampaigns = async (req, res) => {
 };
 
 // Get all clients for a specific account with a phone number
-const getCustomersWithPhoneNumber = async (req, res) => {
-    console.log("getCustomersWithPhoneNumber");
-    //Find account id by req.email
-    const account = await Account.findOne({ userEmails: req.email });
-    if (!account) {
-        return res.status(404).json({ message: "Account not found" });
-    }
+// const getCustomersWithPhoneNumber = async (req, res) => {
+//     console.log("getCustomersWithPhoneNumber");
+//     //Find account id by req.email
+//     const account = await Account.findOne({ userEmails: req.email });
+//     if (!account) {
+//         return res.status(404).json({ message: "Account not found" });
+//     }
 
-    try {
-        // Find all clients associated with the given accountId and having a phone number
-        const clients = await Client.find({
-            addedAccounts: { $elemMatch: { accountId: account._id } },
-            phoneNumber: { $ne: "" }, // Ensure phoneNumber is not empty
-        }).select("name email phoneNumber"); // Select only the desired fields
+//     try {
+//         // Find all clients associated with the given accountId and having a phone number
+//         const clients = await Client.find({
+//             addedAccounts: { $elemMatch: { accountId: account._id } },
+//             phoneNumber: { $ne: "" }, // Ensure phoneNumber is not empty
+//         }).select("name email phoneNumber"); // Select only the desired fields
 
-        if (clients.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "No clients found with a phone number for this account.",
-            });
-        }
+//         if (clients.length === 0) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: "No clients found with a phone number for this account.",
+//             });
+//         }
 
-        res.status(200).json({
-            success: true,
-            data: clients,
-        });
-    } catch (error) {
-        console.error("Error fetching clients with phone numbers:", error);
-        res.status(500).json({
-            success: false,
-            error: "Failed to fetch clients with phone numbers.",
-        });
-    }
-};
+//         res.status(200).json({
+//             success: true,
+//             data: clients,
+//         });
+//     } catch (error) {
+//         console.error("Error fetching clients with phone numbers:", error);
+//         res.status(500).json({
+//             success: false,
+//             error: "Failed to fetch clients with phone numbers.",
+//         });
+//     }
+// };
 
-module.exports = { createCampaign, handleStatusCallback, getCampaigns, getCustomersWithPhoneNumber };
+module.exports = { createCampaign, handleStatusCallback, getCampaigns };
