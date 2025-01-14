@@ -210,72 +210,76 @@ exports.emailSenderEditor = async (req, res) => {
       // Enviar emails a todos los clientes
       for (const client of clients) {
         const footerContent = `
-          <div class="footer" style="text-align: center; font-family: Arial, sans-serif; color: #555; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
-            <div style="background-color: #f8f9fa; padding: 10px; display: inline-block; border-radius: 8px;">
-              <img 
-                src="${account?.logo || logoUrl}" 
-                alt="FidelidApp Logo" 
-                style="width: 150px; height: auto; margin-bottom: 20px; max-width: 100%;">
-            </div>
-            
+        <div class="footer" style="text-align: center; font-family: Arial, sans-serif; color: #555; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <img 
+            src="${account?.logo || logoUrl}" 
+            alt="FidelidApp Logo" 
+            style="width: 150px; height: auto; margin-bottom: 20px;">
+          
+          ${
+            account.socialMedia.instagram || account.socialMedia.facebook || account.socialMedia.whatsapp || account.socialMedia.website
+              ? `<p style="font-size: 14px; font-weight: bold; margin: 10px 0;">Síguenos en nuestras redes sociales</p>`
+              : ""
+          }
+          
+          <div class="social-icons" style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
             ${
-              account.socialMedia.instagram || account.socialMedia.facebook || account.socialMedia.whatsapp || account.socialMedia.website
-                ? `<p style="font-size: 14px; font-weight: bold; margin: 10px 0;">Síguenos en nuestras redes sociales</p>`
+              account.socialMedia.instagram
+                ? `<a href="${account.socialMedia.instagram}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/instagram.svg" 
+                      alt="Instagram" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
                 : ""
             }
-            
-            <div style="text-align: center; margin: 20px 0;">
-              ${
-                account.socialMedia.instagram
-                  ? `<a href="${account.socialMedia.instagram}" target="_blank" style="display: inline-block; margin: 0 5px;">
-                      <img 
-                        src="https://res.cloudinary.com/di92lsbym/image/upload/v1736187971/instagram_i22snp.png" 
-                        alt="Instagram" 
-                        style="width: 32px; height: 32px;">
-                    </a>`
-                  : ""
-              }
-              ${
-                account.socialMedia.facebook
-                  ? `<a href="${account.socialMedia.facebook}" target="_blank" style="display: inline-block; margin: 0 5px;">
-                      <img 
-                        src="https://res.cloudinary.com/di92lsbym/image/upload/v1736187971/facebook_hiavox.png" 
-                        alt="Facebook" 
-                        style="width: 32px; height: 32px;">
-                    </a>`
-                  : ""
-              }
-              ${
-                account.socialMedia.whatsapp
-                  ? `<a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank" style="display: inline-block; margin: 0 5px;">
-                      <img 
-                        src="https://res.cloudinary.com/di92lsbym/image/upload/v1736187971/whatsapp_tubhvw.png" 
-                        alt="WhatsApp" 
-                        style="width: 32px; height: 32px;">
-                    </a>`
-                  : ""
-              }
-              ${
-                account.socialMedia.website
-                  ? `<a href="${account.socialMedia.website}" target="_blank" style="display: inline-block; margin: 0 5px;">
-                      <img 
-                        src="https://res.cloudinary.com/di92lsbym/image/upload/v1736187971/www_q7p72q.png" 
-                        alt="Website" 
-                        style="width: 32px; height: 32px;">
-                    </a>`
-                  : ""
-              }
-            </div>
-
-            <p style="font-size: 12px; color: #999;">
-              &copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.
-            </p>
-
-            <p style="font-size: 12px; color: #999; margin-top: 20px;">
-              Haz clic <a href="<%unsubscribe_url%>" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.
-            </p>
+            ${
+              account.socialMedia.facebook
+                ? `<a href="${account.socialMedia.facebook}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/facebook.svg" 
+                      alt="Facebook" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+            ${
+              account.socialMedia.whatsapp
+                ? `<a href="https://wa.me/${account.socialMedia.whatsapp}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/whatsapp.svg" 
+                      alt="WhatsApp" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
+            ${
+              account.socialMedia.website
+                ? `<a href="${account.socialMedia.website}" target="_blank" style="transition: color 0.3s;">
+                    <img 
+                      src="https://www.svgrepo.com/show/453365/language.svg" 
+                      alt="Website" 
+                      style="width: 24px; height: 24px; margin: 0 5px; color: #059def;">
+                  </a>`
+                : ""
+            }
           </div>
-        `;
+      
+          <p style="font-size: 12px; color: #999;">
+            &copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.
+          </p>
+      
+          <p style="font-size: 12px; color: #999; margin-top: 20px;">
+            Haz clic <a href="<%unsubscribe_url%>" style="color: #007bff; text-decoration: underline;">aquí</a> para cancelar tu suscripción.
+          </p>
+        </div>
+        
+        <style>
+          .social-icons a:hover img {
+            filter: brightness(0.8);
+          }
+        </style>
+      `;
 
         // Inyectar el footer al final del template
         const msg = {

@@ -57,24 +57,28 @@ const createCampaign = async (req, res) => {
             name,
             message,
             twilioMessageIds: [],
-            phoneNumbers,
         });
         await campaign.save();
 
-        clients.forEach(async (client) => {
+        clients.forEach(async (cliente) => {
             try {
-                // Replace {clientName} in the message with the actual client name
-                const personalizedMessage = message.replace("{clientName}", client.name);
+                // Replace {nombreCliente} in the message with the actual client name
+                const personalizedMessage = message.replace("{nombreCliente}", cliente.name);
+                console.log(`Sending SMS to ${cliente.phoneNumber}: ${personalizedMessage}`);
+                
+                //Push Phonenumber to campaign
+                campaign.phoneNumbers.push(cliente.phoneNumber);
 
+                // Send the SMS using Twilio
                 const twilioResponse = await client.messages.create({
                     body: personalizedMessage,
                     from: twilioPhoneNumber,
-                    to: client.phoneNumber,
+                    to: cliente.phoneNumber,
                     statusCallback: `https://api.fidelidapp.cl/api/sms/status-callback`,
                 });
-                
-                console.log(`SMS sent to ${client.phoneNumber}:`, twilioResponse);
+
                 campaign.twilioMessageIds.push(twilioResponse.sid);
+                account.smsSentCount += 1;
                 campaign.metrics.sent += 1;
 
                 const smsRecord = new Sms({
@@ -87,7 +91,7 @@ const createCampaign = async (req, res) => {
                 });
                 await smsRecord.save();
             } catch (error) {
-                console.error(`Failed to send SMS to ${number}:`, error);
+                console.error(`Failed to send SMS to ${cliente.phoneNumber}:`, error);
             }
         }
 
@@ -96,6 +100,7 @@ const createCampaign = async (req, res) => {
         // Update campaign status
         campaign.status = "Completed";
         await campaign.save();
+        await account.save();
 
         res.status(201).json({ success: true, data: campaign });
     } catch (error) {
@@ -105,6 +110,11 @@ const createCampaign = async (req, res) => {
         res.status(500).json({ success: false, error: "Failed to create campaign" });
     }
 };
+
+//TODO
+//Check Campaign Status Logic
+//Check SMS COUNTER
+//CHeck Callback
 
 // Handle Status Callback
 const handleStatusCallback = async (req, res) => {
