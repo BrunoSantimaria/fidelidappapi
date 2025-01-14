@@ -749,11 +749,11 @@ router.post("/redeem-points", async (req, res) => {
 
 const formatName = (name) => {
   return name
-    .toLowerCase()
     .split(" ")
     .map((word) => {
       if (word.length === 0) return "";
-      return word[0].toUpperCase() + word.slice(1);
+      // Convertir solo la primera letra a mayúscula manteniendo el resto igual
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     })
     .filter((word) => word.length > 0)
     .join(" ");
