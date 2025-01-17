@@ -11,10 +11,18 @@ const authToken = '02f0cd60ac53ac4e64c5615439710a7f' // process.env.TWILIO_AUTH_
 const twilioPhoneNumber = '+17856308718' //process.env.TWILIO_PHONE_NUMBER;
 const client = twilio(accountSid, authToken);
 
+//TODO
+//Check Callback
+//Formato de numeros existentes
+
 // Create a new SMS campaign
 const createCampaign = async (req, res) => {
     const { name, message } = req.body;
-    console.log("Creando Campaña:", name, message);
+    console.log("Creando Campaña SMS:", name, message);
+
+    if (!name || !message) {
+        return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
 
     //User req.email to look for accountId
     const account = await Account.findOne({ userEmails: req.email });
@@ -34,9 +42,6 @@ const createCampaign = async (req, res) => {
         return res.status(400).json({ success: false, error: "SMS usage limit exceeded" });
     }
 
-    if (!name || !message) {
-        return res.status(400).json({ success: false, error: "Missing required fields" });
-    }
 
     // Find all clients associated with the given accountId and having a phone number
     const clients = await Client.find({
@@ -60,14 +65,12 @@ const createCampaign = async (req, res) => {
         });
         await campaign.save();
 
-        clients.forEach(async (cliente) => {
+        // Use Promise.all to handle SMS sending and data saving in parallel
+        const smsPromises = clients.map(async (cliente) => {
             try {
                 // Replace {nombreCliente} in the message with the actual client name
                 const personalizedMessage = message.replace("{nombreCliente}", cliente.name);
                 console.log(`Sending SMS to ${cliente.phoneNumber}: ${personalizedMessage}`);
-                
-                //Push Phonenumber to campaign
-                campaign.phoneNumbers.push(cliente.phoneNumber);
 
                 // Send the SMS using Twilio
                 const twilioResponse = await client.messages.create({
@@ -77,6 +80,7 @@ const createCampaign = async (req, res) => {
                     statusCallback: `https://api.fidelidapp.cl/api/sms/status-callback`,
                 });
 
+                campaign.phoneNumbers.push(cliente.phoneNumber);
                 campaign.twilioMessageIds.push(twilioResponse.sid);
                 account.smsSentCount += 1;
                 campaign.metrics.sent += 1;
@@ -92,12 +96,15 @@ const createCampaign = async (req, res) => {
                 await smsRecord.save();
             } catch (error) {
                 console.error(`Failed to send SMS to ${cliente.phoneNumber}:`, error);
+                account.smsSentCount += 1;
+                campaign.metrics.failed += 1;
             }
-        }
+        });
 
-        );
+        // Wait for all SMS operations to complete
+        await Promise.all(smsPromises);
 
-        // Update campaign status
+        // Update campaign and account
         campaign.status = "Completed";
         await campaign.save();
         await account.save();
@@ -110,11 +117,6 @@ const createCampaign = async (req, res) => {
         res.status(500).json({ success: false, error: "Failed to create campaign" });
     }
 };
-
-//TODO
-//Check Campaign Status Logic
-//Check SMS COUNTER
-//CHeck Callback
 
 // Handle Status Callback
 const handleStatusCallback = async (req, res) => {
@@ -182,10 +184,12 @@ const getCampaigns = async (req, res) => {
     try {
         // Find and count all clients associated with the given accountId and having a phone number
         const totalContactsWithPhoneNumber = await Client.countDocuments({
-            addedAccounts: { $elemMatch: { accountId: account._id } },
-            phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
+            addedAccounts: { $elemMatch: { accountId: accountId } },
+            phoneNumber: { $exists: true, $ne: '' } // Ensure phoneNumber exists, is not empty, and starts with +56
         });
-        const campaigns = await SmsCampaign.find().sort({ startDate: -1 });
+
+        const campaigns = await SmsCampaign.find({ accountId: account._id }).sort({ startDate: -1 });
+
         res.status(200).json({ success: true, data: campaigns, SmsLimit: plan.SmsLimit, SmsSentCount: account.smsSentCount, totalContactsWithPhoneNumber: totalContactsWithPhoneNumber });
     } catch (error) {
         console.error("Error fetching campaigns:", error);

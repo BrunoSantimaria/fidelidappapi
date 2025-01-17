@@ -61,7 +61,7 @@ PlanSchema.pre("save", function (next) {
     this.clientLimit = null;
     this.sendEmail = true;
     this.sendSms = true;
-    this.SmsLimit = 100;
+    this.SmsLimit = 10;
   } else if (this.planStatus === "pro2") {
     this.promotionLimit = 10;
     this.emailLimit = 10000;
@@ -72,13 +72,14 @@ PlanSchema.pre("save", function (next) {
     this.emailLimit = 30000;
     this.sendEmail = true;
     this.clientLimit = null;
+    this.SmsLimit = 10;
   } else if (this.planStatus === "premium") {
     this.promotionLimit = 50;
     this.emailLimit = 10000;
     this.sendEmail = true;
     this.clientLimit = null;
     this.sendSms = true;
-    this.SmsLimit = 100;
+    this.SmsLimit = 10;
   }
 
   next();
