@@ -122,6 +122,7 @@ const createCampaign = async (req, res) => {
 
 // Handle Status Callback
 const handleStatusCallback = async (req, res) => {
+    console.log("Handling status callback:", req.body);
     const { MessageSid, MessageStatus } = req.body;
 
     try {
