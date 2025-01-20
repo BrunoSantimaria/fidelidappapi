@@ -6,10 +6,12 @@ const Account = require("../accounts/Account.model");
 const twilio = require("twilio");
 const Plan = require("../plans/Plans.model");
 
-const accountSid = 'ACa2fc17b0da0e9966d8a2160940bcc664' //process.env.TWILIO_ACCOUNT_SID;
-const authToken = '02f0cd60ac53ac4e64c5615439710a7f' // process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = '+17856308718' //process.env.TWILIO_PHONE_NUMBER;
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
 const client = twilio(accountSid, authToken);
+
 
 //TODO
 //Check Callback
