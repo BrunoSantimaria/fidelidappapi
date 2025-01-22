@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const { Account } = require("../accounts/Account.model"); // Adjust the path according to your structure
 const { v4: uuidv4 } = require("uuid"); // Use uuid to generate unique keys
-const { sendMarketingEmail } = require("../utils/emailSender"); // Adjust the import path as needed
+const { sendMarketingEmail, sendRegisterEmail } = require("../utils/emailSender"); // Adjust the import path as needed
 const qr = require("qrcode");
 const account = require("../accounts/Account.model");
 const generateQrKeys = async () => {
@@ -33,41 +33,8 @@ const generateQr = async () => {
 };
 
 const sendQrCode = async (account) => {
-  const subject = "¡Bienvenido a la familia Fidelidapp! 🎉";
-  const header = "¡Tu negocio está a punto de crecer!";
-
-  const emailContent = `
-<div style="font-family: Arial, sans-serif;">
-  <p>¡Hola! 👋</p>
-  
-  <p>¡Estamos emocionados de tenerte como parte de la familia Fidelidapp! Has dado el primer paso para transformar la forma en que te conectas con tus clientes.</p>
-
-  <p>Con Fidelidapp podrás:</p>
-  <ul>
-    <li>✨ Crear programas de fidelización atractivos</li>
-    <li>📊 Hacer seguimiento de tus promociones</li>
-    <li>🚀 Hacer crecer tu base de clientes fieles</li>
-  </ul>
-
-  <p>Si necesitas ayuda para comenzar o tienes alguna pregunta, no dudes en contactarnos:</p>
-  <ul>
-    <li>📱 WhatsApp: +56996706983</li>
-    <li>💌 Correo: contacto@fidelidapp.com</li>
-  </ul>
-
-  <p>¡Prepárate para llevar tu negocio al siguiente nivel!</p>
-
-  <p>Saludos cordiales,<br>
-  El equipo de Fidelidapp 💪</p>
-</div>`;
-
   try {
-    await sendMarketingEmail({
-      to: account.userEmails,
-      subject,
-      header,
-      text: emailContent,
-    });
+    await sendRegisterEmail(account);
   } catch (error) {
     console.error("Error sending welcome email:", error);
   }
