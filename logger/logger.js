@@ -17,7 +17,7 @@ const logAction = async (email, action, details, SlackChannel) => {
 
     await app.client.chat.postMessage({
       channel: channel,
-      text: `Nueva Acción Registrada en Fidelidapp
+      text: `Nueva Acción:
         Email: ${email} 
         Acción: ${action} 
         Detalle: ${details}`,
@@ -31,4 +31,4 @@ const logAction = async (email, action, details, SlackChannel) => {
 };
 
 
-module.exports = { logAction };
+module.exports = { logAction,  };
