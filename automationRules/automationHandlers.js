@@ -1,6 +1,6 @@
 const Client = require("../promotions/client.model");
 const Promotion = require("../promotions/promotions.model");
-const { sendMarketingEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
+const { sendMarketingEmail, sendAutomatedEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
 const mongoose = require("mongoose");
 
 // OLD Handler para clientes inactivos
@@ -130,7 +130,7 @@ async function handlePromotionExpiration(rule) {
   }
 }
 
-// Handler para clientes nuevos y explica como funciona el programa
+// Handler para clientes nuevos y explica como funciona el programa, es de una unica vez, se podria mejorar ahora que toma HTML el handleRegistrationDate controller
 async function handleclientRegistration(rule) {
   const { account, conditionValue, subject, message } = rule;
   console.log("Executing client registration rule:", rule.name);
@@ -220,10 +220,10 @@ async function handleRegistrationDate(rule) {
         if (registrationDate.toISOString().split("T")[0] === registrationThreshold.toISOString().split("T")[0]) {
           try {
             // Send marketing email
-            sendMarketingEmail({
+            sendAutomatedEmail({
               to: client.email,
               subject: subject,
-              text: message,
+              html: message,
             });
 
             console.log("Automated handleRegistrationDate Email sent to " + client.email);

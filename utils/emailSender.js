@@ -350,21 +350,23 @@ const sendReminderEmail = async (account) => {
   }
 };
 
-// Cron job function to send summary email
-// const sendReportEmail = async (recipientEmail, subject, body) => {
-//   try {
-//     const msg = {
-//       to: recipientEmail, // Replace with recipient email
-//       from: "contacto@fidelidapp.cl", // Verified SendGrid sender email
-//       subject: subject,
-//       html: body,
-//     };
+const sendAutomatedEmail = async ({ to, subject, html }) => {
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
+  const formattedText = html.replace(/(?:\r\n|\r|\n)/g, "<br>");
 
-//     await sgMail.send(msg);
-//     console.log(`Report email sent to ${recipientEmail}`);
-//   } catch (error) {
-//     console.error("Error sending report email:", error.response?.body || error.message);
-//   }
-// };
+  try {
+    const msg = {
+      to,
+      from: "contacto@fidelidapp.cl",
+      subject,
+      html
+    };
+    await sgMail.send(msg);
+    console.log("Email sent successfully.");
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw error;
+  }
+};
 
-module.exports = { sendMarketingEmail, sendAgendaEmail, sendRegisterEmail, sendReminderEmail };
+module.exports = { sendMarketingEmail, sendAgendaEmail, sendRegisterEmail, sendReminderEmail, sendAutomatedEmail };
