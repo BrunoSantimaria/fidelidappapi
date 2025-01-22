@@ -277,7 +277,7 @@ const sendReminderEmail = async (account) => {
 
   // Contenido del email con el logo incluido
   const html = `
-    <!DOCTYPE html>
+      <!DOCTYPE html>
     <html lang="es">
     <head>
       <meta charset="UTF-8">
@@ -292,12 +292,12 @@ const sendReminderEmail = async (account) => {
           <img src="${logoUrl}" alt="Fidelidapp Logo" style="height: 80px; display: block; margin: auto;">
         </div>
         
-        <h1 style="color: #4CAF50; text-align: center;">¡Hola de nuevo! 👋</h1>
+        <h1 style="color: #5b7898; text-align: center;">¡Hola de nuevo! 👋</h1>
         <h2 style="color: #555; text-align: center;">¿Ya empezaste a usar Fidelidapp? 🚀</h2>
 
         <p style="margin: 0 0 10px;">Hace una semana te dimos la bienvenida a Fidelidapp, y queremos recordarte todas las increíbles herramientas que tienes a tu disposición para conectar con tus clientes y hacer crecer tu negocio.</p>
 
-        <h3 style="color: #4CAF50; margin-top: 20px;">Con Fidelidapp puedes:</h3>
+        <h3 style="color: #5b7898; margin-top: 20px;">Con Fidelidapp puedes:</h3>
         <ul style="padding-left: 20px; margin: 0 0 20px;">
           <li style="margin-bottom: 10px;">📇 Tener una base de datos organizada de tus clientes y enviarles campañas de email marketing.</li>
           <li style="margin-bottom: 10px;">🎯 Crear sistemas de puntos y recompensas únicos.</li>
@@ -318,7 +318,7 @@ const sendReminderEmail = async (account) => {
         
         <div style="text-align: center; margin: 20px 0;">
           <a href="https://wa.me/56996706983" target="_blank" style="display: inline-block; background-color: #25D366; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px;">📱 Escríbenos por WhatsApp</a>
-          <a href="mailto:contacto@fidelidapp.com" style="display: inline-block; background-color: #4CAF50; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">💌 Contáctanos por Email</a>
+          <a href="mailto:contacto@fidelidapp.com" style="display: inline-block; background-color: #5b7898; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">💌 Contáctanos por Email</a>
         </div>
 
         <p style="text-align: center; font-size: 14px; color: #888;">¡Estamos aquí para ayudarte a sacar el máximo provecho de Fidelidapp!</p>
@@ -330,7 +330,7 @@ const sendReminderEmail = async (account) => {
         </div>
       </div>
     </body>
-    </html>
+    </html> 
   `;
 
   try {
