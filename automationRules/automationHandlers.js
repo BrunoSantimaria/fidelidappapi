@@ -169,11 +169,15 @@ async function handleclientRegistration(rule) {
         // Compare only the date part (ignoring time)
         if (registrationDate.toISOString().split("T")[0] === registrationThreshold.toISOString().split("T")[0]) {
           try {
+            // Replace {nombreCliente} in the message with the actual client name
+            const personalizedMessage = emailText.replace("{nombreCliente}", client.name);
+            console.log(`Sending email to ${client.email}: ${personalizedMessage}`);
+
             // Send marketing email
             sendMarketingEmail({
               to: client.email,
               subject: subject,
-              text: emailText,
+              text: personalizedMessage,
             });
 
             console.log("Automated handleClientRegistration Email sent to " + client.email);
@@ -219,11 +223,14 @@ async function handleRegistrationDate(rule) {
         // Compare only the date part (ignoring time)
         if (registrationDate.toISOString().split("T")[0] === registrationThreshold.toISOString().split("T")[0]) {
           try {
+            // Replace {nombreCliente} in the message with the actual client name
+            const personalizedMessage = message.replace("{nombreCliente}", client.name);
+            //console.log(`Sending email to ${client.email}: ${personalizedMessage}`);
             // Send marketing email
             sendAutomatedEmail({
               to: client.email,
               subject: subject,
-              html: message,
+              html: personalizedMessage,
             });
 
             console.log("Automated handleRegistrationDate Email sent to " + client.email);
