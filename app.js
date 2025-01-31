@@ -15,7 +15,10 @@ require("./utils/leadsemailparser");
 const { weekdayEmailsCron, weekendEmailsCron } = require("./utils/ProcessScheduledEmails");
 require("./utils/promotionsCronJob");
 
+const reminderAgendaJob = require("./utils/reminderAgendaJob");
 dotenv.config();
+
+// Conexión a la base de datos
 
 // Conexión a la base de datos
 mongoose
@@ -24,13 +27,15 @@ mongoose
     console.log("Conectado a MongoDB");
     weekdayEmailsCron.start();
     weekendEmailsCron.start();
+
+    reminderAgendaJob.start();
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);
   });
 
 // Resto de tu código...
-cron.schedule("0 4 1 * *", async () => { 
+cron.schedule("0 4 1 * *", async () => {
   try {
     console.log("Checking and resetting email counts...");
 

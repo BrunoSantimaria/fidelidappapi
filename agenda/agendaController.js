@@ -1,397 +1,390 @@
+// controllers/agendaController.ts
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
-const Client = require("../promotions/client.model");
-const Account = require("../accounts/Account.model");
-const emailSender = require("../utils/emailSender");
-const { handlePromotionRedemption } = require("../utils/handlePromotionRedemption");
+const { startOfDay, endOfDay } = require("date-fns");
+const { generateUniqueLink } = require("../utils/generateUniqueLink");
+const mongoose = require("mongoose");
+const { logAction } = require("../logger/logger");
+const { sendStatusChangeEmails } = require("./agendaMailing");
 
-exports.createAgenda = async (req, res) => {
-  const { name, slots, eventDuration, availableDays, availableHours } = req.body;
-  const ownerid = req.userid;
-
-  const daysMap = {
-    Lunes: 1,
-    Martes: 2,
-    Miercoles: 3,
-    Jueves: 4,
-    Viernes: 5,
-    Sabado: 6,
-    Domingo: 0,
-  };
-
-  const daysAsNumbers = availableDays.map((day) => daysMap[day]);
-
-  const sortedHours = availableHours.sort();
-  const hoursRanges = [];
-
-  if (sortedHours.length > 0) {
-    let start = sortedHours[0];
-
-    for (let i = 1; i < sortedHours.length; i++) {
-      const prev = sortedHours[i - 1];
-      const current = sortedHours[i];
-
-      if (current !== addOneHour(prev)) {
-        hoursRanges.push({
-          start,
-          end: prev,
-        });
-        start = current;
-      }
-    }
-
-    hoursRanges.push({
-      start,
-      end: sortedHours[sortedHours.length - 1],
-    });
-  }
-
-  function addOneHour(timeStr) {
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes);
-    date.setHours(date.getHours() + 1);
-    return date.toTimeString().substr(0, 5);
-  }
-
+const createAgenda = async (req, res) => {
   try {
-    // Buscar la cuenta del usuario
-    const accountId = await Account.findOne({ owner: ownerid });
+    const { name, description, type, recurringConfig, specialDates, duration, slots, accountId } = req.body;
 
-    if (!accountId) {
-      return res.status(404).json({ error: "Account not found" });
-    }
+    const uniqueLink = generateUniqueLink(name);
 
-    const newAgenda = new Agenda({
-      name,
-      slots,
+    const agendaData = {
       accountId,
-      eventDuration: parseInt(eventDuration),
-      availableDays: daysAsNumbers,
-      availableHours: hoursRanges,
-    });
+      name,
+      description,
+      duration,
+      slots,
+      uniqueLink,
+      type: type || "recurring",
+    };
 
-    const agenda = await newAgenda.save();
+    if (type === "recurring" && recurringConfig) {
+      agendaData.recurringConfig = recurringConfig;
+    } else if (type === "special" && specialDates) {
+      agendaData.specialDates = specialDates;
+    }
+    logAction("createAgenda", agendaData, req.user);
+    const agenda = await Agenda.create(agendaData);
     res.status(201).json(agenda);
   } catch (error) {
-    console.error("Error creating agenda:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ message: error.message });
   }
 };
 
-exports.getAgendas = async (req, res) => {
-  const email = req.email;
-  const account = await Account.findOne({ userEmails: email });
-  //console.log(account);
-  //console.log(email);
+const createAppointment = async (req, res) => {
   try {
-    const agendas = await Agenda.find({ accountId: account._id });
-    res.status(200).json(agendas);
-  } catch (error) {
-    console.error("Error getting agendas:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
+    const { agendaId, startTime, endTime, clientName, clientEmail, clientPhone, notes, numberOfPeople } = req.body;
 
-exports.getAvailableSlots = async (req, res) => {
-  const { agendaId } = req.params;
+    // Verificar si el agendaId es un ObjectId válido
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(agendaId);
 
-  if (!agendaId) {
-    return res.status(400).json({ error: "Agenda ID is required" });
-  }
-
-  try {
-    // Encuentra la agenda
-    const agenda = await Agenda.findById(agendaId);
-    if (!agenda) {
-      return res.status(404).json({ error: "Agenda not found" });
+    // Buscar la agenda por ID o por uniqueLink
+    let agenda;
+    if (isValidObjectId) {
+      agenda = await Agenda.findById(agendaId);
+    } else {
+      agenda = await Agenda.findOne({ uniqueLink: agendaId });
     }
 
-    // Obtiene todas las citas para esta agenda que no esten cancledaos, statut != cancelled
-    const appointments = await Appointment.find({ agendaId: agendaId }).where("status").ne("Cancelled");
+    if (!agenda) {
+      return res.status(404).json({ message: "Agenda no encontrada" });
+    }
 
-    const availableSlotsByDay = {};
-    const currentUtcDate = new Date();
-    const userOffset = new Date().getTimezoneOffset() * 60000; // Desplazamiento de la zona horaria del usuario en milisegundos
-    const currentDate = new Date(currentUtcDate.getTime() - userOffset);
+    // Verificar si el horario ya está ocupado y la capacidad disponible
+    const existingAppointments = await Appointment.find({
+      agendaId: agenda._id,
+      startTime: { $lte: endTime },
+      endTime: { $gte: startTime },
+    });
 
-    const endDate = new Date();
-    endDate.setDate(currentDate.getDate() + 7); // Establece la fecha de finalización a 7 días desde hoy
-    let i = 0;
-
-    while (currentDate <= endDate) {
-      const dayOfWeek = currentDate.getDay(); // Obtiene el día de la semana actual
-      const dateString = currentDate.toISOString().split("T")[0]; // Formatea la fecha como YYYY-MM-DD
-
-      if (agenda.availableDays.includes(dayOfWeek)) {
-        // Verifica si el día está disponible
-        if (!availableSlotsByDay[dateString]) {
-          availableSlotsByDay[dateString] = []; // Inicializa la matriz para el día
-        }
-
-        for (let time of agenda.availableHours) {
-          const startTime = new Date(`${dateString}T${time.start}:00`);
-          const endTime = new Date(`${dateString}T${time.end}:00`);
-
-          // Convierte las horas de UTC a local restando el desplazamiento del usuario
-          startTime.setTime(startTime.getTime() - userOffset);
-          endTime.setTime(endTime.getTime() - userOffset);
-
-          // Genera intervalos dentro del rango de tiempo disponible
-          let slotStartTime = new Date(startTime);
-          while (slotStartTime.getTime() + agenda.eventDuration * 60000 <= endTime.getTime()) {
-            const slotEndTime = new Date(slotStartTime.getTime() + agenda.eventDuration * 60000);
-
-            if (slotStartTime > currentDate - i * 86400000) {
-              // Solo incluye intervalos futuros
-              // Calcula cuántas citas están reservadas para este intervalo de tiempo
-              const bookedSlotsCount = appointments.filter((appointment) => appointment.startTime.getTime() === slotStartTime.getTime()).length;
-
-              // Calcula los slots restantes
-              const remainingSlots = Math.max(agenda.slots - bookedSlotsCount, 0);
-
-              // Agrega el intervalo con los slots restantes
-              if (remainingSlots > 0) {
-                availableSlotsByDay[dateString].push({
-                  startTime: slotStartTime,
-                  endTime: slotEndTime,
-                  remainingSlots: remainingSlots,
-                });
-              }
-            }
-
-            // Mueve al siguiente intervalo
-            slotStartTime = new Date(slotStartTime.getTime() + agenda.eventDuration * 60000);
-          }
-        }
+    if (agenda.requiresCapacity) {
+      // Si requiere capacidad, verificamos el total de personas en ese horario
+      const totalPeopleInSlot = existingAppointments.reduce((sum, app) => sum + app.numberOfPeople, 0);
+      if (totalPeopleInSlot + numberOfPeople > agenda.slots) {
+        return res.status(400).json({ message: "No hay suficiente capacidad disponible para este horario" });
       }
-      // Mueve al siguiente día
-      currentDate.setDate(currentDate.getDate() + 1);
-      i++;
-    }
-
-    res.status(200).json({ name: agenda.name, description: agenda.description, availableSlotsByDay });
-  } catch (error) {
-    console.error("Error getting available slots:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.createAppointment = async (req, res) => {
-  const { agendaId, clientEmail, startTime } = req.body;
-
-  if (!agendaId || !clientEmail || !startTime) {
-    return res.status(400).json({ error: "All fields are required" });
-  }
-
-  try {
-    // Verificar que la agenda exista
-    const agenda = await Agenda.findById(agendaId).populate({ path: "accountId", populate: { path: "owner", select: "email" } });
-    if (!agenda) {
-      return res.status(404).json({ error: "Agenda not found" });
-    }
-
-    // Verificar que el cliente exista, si no existe crearlo
-    let clientId = await Client.findOne({ email: clientEmail });
-    if (!clientId) {
-      const client = new Client({ email: clientEmail });
-      await client.save();
-      clientId = client._id;
+    } else {
+      // Si no requiere capacidad, solo permitimos una cita por horario
+      if (existingAppointments.length > 0) {
+        return res.status(400).json({ message: "El horario seleccionado ya no está disponible" });
+      }
     }
 
     // Crear la cita
-    const appointment = new Appointment({
-      agendaId,
-      clientId,
-      startTime: new Date(startTime),
-      endTime: new Date(startTime) + agenda.eventDuration * 60000,
+    const appointment = await Appointment.create({
+      agendaId: agenda._id,
+      startTime,
+      endTime,
+      clientName,
+      clientEmail,
+      clientPhone,
+      notes,
+      numberOfPeople: agenda.requiresCapacity ? numberOfPeople : 1,
     });
 
-    await appointment.save();
+    // Enviar correos de notificación
+    await sendStatusChangeEmails(appointment, "created");
 
-    // Enviar correos electrónicos
-    const appointmentDetails = `
-         Detalles de la Cita
-         
-         Fecha: ${startTime.split(":00.000")[0]} 
-         Duración: ${agenda.eventDuration} minutes 
-     `;
-
-    const confirmationLink = process.env.BASE_URL + `/agenda/confirm/${appointment._id}`;
-    const cancellationLink = process.env.BASE_URL + `/agenda/cancel/${appointment._id}`;
-
-    const emailContent = `
-         ${appointmentDetails}
-        
-        Por favor, confirma esta cita en el siguiente link:
-        
-        <a href="${confirmationLink}" class="button confirm">Confirmar Cita</a>
-        
-        Si no podrás asistir, puedes cancelarla en el siguiente link:
-        
-        <a href="${cancellationLink}" class="button cancel">Cancelar Cita</a>
-        
-     `;
-
-    // Email to the owner
-    await emailSender.sendAgendaEmail({
-      to: agenda.accountId.owner.email,
-      subject: "Nueva Cita Agendada",
-      header: "Felicidades, tienes una nueva reserva!",
-      text: emailContent,
-    });
-
-    // Email to the client
-    await emailSender.sendAgendaEmail({
-      to: clientEmail,
-      subject: "Nueva Cita Agendada",
-      header: "Felicidades, tienes una nueva reserva!",
-      text: emailContent,
-    });
-
-    res.status(201).json({ message: "Appointment created successfully", appointment });
+    res.status(201).json(appointment);
   } catch (error) {
-    console.error("Error creating appointment:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error al crear la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const getAccountAppointments = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const agendas = await Agenda.find({ accountId });
+    const currentDate = new Date();
+
+    // Obtener citas y agruparlas por agenda
+    const appointmentsByAgenda = [];
+    let totalAppointments = 0;
+    let completedAppointments = 0;
+    let pendingAppointments = 0;
+
+    for (const agenda of agendas) {
+      const appointments = await Appointment.find({
+        agendaId: agenda._id,
+      }).lean();
+
+      // Procesar las citas de esta agenda
+      const processedAppointments = await Promise.all(
+        appointments.map(async (app) => {
+          const appointmentEndTime = new Date(app.endTime);
+          const isCompleted = appointmentEndTime < currentDate;
+
+          // Actualizar el estado en la base de datos si está completada
+          if (isCompleted && app.status !== "completed") {
+            await Appointment.findByIdAndUpdate(app._id, { status: "completed" });
+          }
+
+          // Actualizar contadores
+          totalAppointments++;
+          if (isCompleted) {
+            completedAppointments++;
+          } else {
+            pendingAppointments++;
+          }
+
+          // Mantener los estados existentes o asignar completed/pending según corresponda
+          return {
+            ...app,
+            status: isCompleted ? "completed" : ["confirmed", "cancelled", "rejected"].includes(app.status) ? app.status : "pending",
+          };
+        })
+      );
+
+      appointmentsByAgenda.push({
+        agendaId: agenda._id,
+        agendaName: agenda.name,
+        appointments: processedAppointments,
+      });
+    }
+
+    // Construir respuesta con métricas y citas agrupadas
+    const response = {
+      metrics: {
+        total: totalAppointments,
+        completed: completedAppointments,
+        pending: pendingAppointments,
+      },
+      appointmentsByAgenda,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Error al obtener las citas:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const getAccountAgendas = async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const agendas = await Agenda.find({ accountId });
+    res.json(agendas);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
-exports.getExistingAppointments = async (req, res) => {
-  const { agendaId } = req.params;
-  const userEmail = req.email;
-
+const getAvailableSlots = async (req, res) => {
   try {
-    // Busca la agenda por ID y popula la cuenta asociada
-    const AppointmentAgenda = await Agenda.find({ _id: agendaId }).populate("accountId");
+    const { date } = req.query;
+    const { agendaId } = req.params;
 
-    console.log(AppointmentAgenda);
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(agendaId);
 
-    // Asegúrate de que AppointmentAgenda tiene al menos un elemento
-    if (!AppointmentAgenda.length) {
-      return res.status(404).json({ error: "No se encontró ninguna agenda" });
+    let agenda;
+    if (isValidObjectId) {
+      agenda = await Agenda.findById(agendaId);
+    } else {
+      agenda = await Agenda.findOne({ uniqueLink: agendaId });
     }
 
-    // Accede al primer elemento del array
-    const agenda = AppointmentAgenda[0];
-
-    // Asegúrate de que accountId y userEmails existan antes de intentar acceder a ellos
-    if (!agenda.accountId || !agenda.accountId.userEmails) {
-      return res.status(400).json({ error: "No se pudo encontrar la información de la cuenta asociada a la agenda" });
-    }
-
-    // Verifica si el email del usuario está en userEmails
-    if (!agenda.accountId.userEmails.includes(userEmail)) {
-      return res.status(401).json({ error: "Usuario no autorizado para ver la agenda" });
-    }
-  } catch (error) {
-    console.error("Error validating user:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-
-  try {
-    // Ordena las citas por hora de inicio
-    const appointments = await Appointment.find({ agendaId }).populate("clientId", "email").sort({ startTime: 1 });
-
-    res.status(200).json({ appointments });
-  } catch (error) {
-    console.error("Error fetching existing appointments:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.deleteAgenda = async (req, res) => {
-  const { agendaId } = req.params;
-  try {
-    const agenda = await Agenda.findByIdAndDelete(agendaId);
     if (!agenda) {
-      return res.status(404).json({ error: "Agenda not found" });
-    }
-    res.status(200).json({ message: "Agenda deleted successfully", agenda });
-  } catch (error) {
-    console.error("Error deleting agenda:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.cancelAppointment = async (req, res) => {
-  const { appointmentId } = req.params;
-
-  try {
-    const appointment = await Appointment.findById(appointmentId);
-    if (!appointment) {
-      return res.status(404).json({ error: "Appointment not found" });
+      return res.status(404).json({ message: "Agenda no encontrada" });
     }
 
-    //Change Status to cancelled
-    appointment.status = "Cancelled";
-    await appointment.save();
-
-    res.status(200).json({ message: "Appointment cancelled successfully" });
-  } catch (error) {
-    console.error("Error cancelling appointment:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.confirmAppointment = async (req, res) => {
-  const { appointmentId } = req.params;
-  try {
-    const appointment = await Appointment.findById(appointmentId);
-    if (!appointment) {
-      return res.status(404).json({ error: "Appointment not found" });
-    }
-
-    //Change Status to confirmed
-    appointment.status = "Confirmed";
-    await appointment.save();
-    res.status(200).json({ message: "Appointment confirmed successfully" });
-  } catch (error) {
-    console.error("Error confirming appointment:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-exports.completeAppointment = async (req, res) => {
-  const { appointmentId } = req.params;
-  try {
-    const appointment = await Appointment.findById(appointmentId).populate("clientId");
-    if (!appointment) {
-      return res.status(404).json({ error: "Appointment not found" });
-    }
-
-    console.log("Appointment:", appointment);
-
-    appointment.status = "Completed";
-    await appointment.save();
-
-    const client = appointment.clientId;
-
-    // Para el client a handlePromotionRedemption para aplicar la logica a cada promocion del cliente.
-    await handlePromotionRedemption(client);
-
-    res.status(200).json({
-      message: "Appointment completed and visits redeemed successfully",
+    // Devolver la agenda completa junto con los slots disponibles
+    res.json({
+      availableSlotsByDay: {}, // Mantener para compatibilidad
+      name: agenda.name,
+      description: agenda.description,
+      type: agenda.type,
+      requiresCapacity: agenda.requiresCapacity,
+      recurringConfig: agenda.recurringConfig,
+      uniqueLink: agenda.uniqueLink,
     });
   } catch (error) {
-    console.error("Error completing appointment:", error.message);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error en getAvailableSlots:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-exports.noShowAppointment = async (req, res) => {
-  const { appointmentId } = req.params;
+const getAgendaAppointments = async (req, res) => {
   try {
-    const appointment = await Appointment.findById(appointmentId);
-    if (!appointment) {
-      return res.status(404).json({ error: "Appointment not found" });
+    const { agendaId } = req.params;
+
+    // Verificar si el agendaId es un ObjectId válido
+    const isValidObjectId = mongoose.Types.ObjectId.isValid(agendaId);
+
+    let agenda;
+    if (isValidObjectId) {
+      agenda = await Agenda.findById(agendaId);
+    } else {
+      agenda = await Agenda.findOne({ uniqueLink: agendaId });
     }
 
-    //Change Status to no show
-    appointment.status = "No Show";
-    await appointment.save();
-    res.status(200).json({ message: "Appointment no show successfully" });
+    if (!agenda) {
+      return res.status(404).json({ message: "Agenda no encontrada" });
+    }
+
+    // Obtener todas las citas de la agenda usando el _id sin populate
+    const appointments = await Appointment.find({ agendaId: agenda._id }).sort({ startTime: 1 });
+
+    const formattedAppointments = appointments.map((appointment) => ({
+      _id: appointment._id,
+      clientName: appointment.clientName || "Cliente",
+      clientEmail: appointment.clientEmail,
+      startTime: appointment.startTime,
+      endTime: appointment.endTime,
+      status: appointment.status,
+      notes: appointment.notes,
+      numberOfPeople: appointment.numberOfPeople,
+    }));
+
+    res.json(formattedAppointments);
   } catch (error) {
-    console.error("Error no showing appointment:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error al obtener las citas:", error);
+    res.status(500).json({
+      message: "Error al obtener las citas",
+      error: error.message,
+    });
   }
+};
+
+const getClientAppointments = async (req, res) => {
+  try {
+    const { agendaId } = req.params;
+    const { clientEmail } = req.query;
+
+    const agenda = await Agenda.findById(agendaId);
+    if (!agenda) {
+      return res.status(404).json({ message: "Agenda no encontrada" });
+    }
+
+    const appointments = await Appointment.find({
+      agendaId,
+      clientEmail,
+      startTime: { $gte: new Date() },
+    }).sort({ startTime: 1 });
+
+    res.json(appointments);
+  } catch (error) {
+    console.error("Error al obtener las citas del cliente:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const confirmAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const appointment = await Appointment.findByIdAndUpdate(appointmentId, { status: "confirmed" }, { new: true });
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Cita no encontrada" });
+    }
+
+    await sendStatusChangeEmails(appointment, "confirmed");
+
+    res.json({ message: "Cita confirmada correctamente", appointment });
+  } catch (error) {
+    console.error("Error al confirmar la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const cancelAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const appointment = await Appointment.findByIdAndUpdate(appointmentId, { status: "cancelled" }, { new: true });
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Cita no encontrada" });
+    }
+
+    await sendStatusChangeEmails(appointment, "cancelled");
+
+    res.json({ message: "Cita cancelada correctamente", appointment });
+  } catch (error) {
+    console.error("Error al cancelar la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const rejectAppointment = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const appointment = await Appointment.findByIdAndUpdate(appointmentId, { status: "rejected" }, { new: true });
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Cita no encontrada" });
+    }
+
+    await sendStatusChangeEmails(appointment, "rejected");
+
+    res.json({ message: "Cita rechazada correctamente", appointment });
+  } catch (error) {
+    console.error("Error al rechazar la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+const pauseAgenda = async (req, res) => {
+  try {
+    const { agendaId } = req.params;
+    await Agenda.findByIdAndUpdate(agendaId, { isPaused: true });
+    res.status(204).json({ message: "Agenda pausada correctamente" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+const disableAgenda = async (req, res) => {
+  try {
+    const { agendaId } = req.params;
+    const { disabledReason } = req.body;
+
+    const agenda = await Agenda.findByIdAndUpdate(
+      agendaId,
+      {
+        isDisabled: true,
+        disabledReason,
+        disabledAt: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!agenda) {
+      return res.status(404).json({ message: "Agenda no encontrada" });
+    }
+
+    // Opcional: Cancelar todas las citas pendientes
+    const pendingAppointments = await Appointment.find({
+      agendaId,
+      status: "pending",
+      startTime: { $gt: new Date() },
+    });
+
+    for (const appointment of pendingAppointments) {
+      appointment.status = "cancelled";
+      appointment.cancellationReason = "Agenda deshabilitada";
+      await appointment.save();
+      await sendStatusChangeEmails(appointment, "cancelled");
+    }
+
+    res.json({
+      message: "Agenda deshabilitada correctamente",
+      agenda,
+      appointmentsCancelled: pendingAppointments.length,
+    });
+  } catch (error) {
+    console.error("Error al deshabilitar la agenda:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+module.exports = {
+  createAgenda,
+  getAvailableSlots,
+  getAccountAgendas,
+  getAgendaAppointments,
+  createAppointment,
+  cancelAppointment,
+  pauseAgenda,
+  getClientAppointments,
+  getAccountAppointments,
+  confirmAppointment,
+  rejectAppointment,
+  disableAgenda,
 };
