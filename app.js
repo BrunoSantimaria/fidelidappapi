@@ -16,7 +16,10 @@ const { weekdayEmailsCron, weekendEmailsCron } = require("./utils/ProcessSchedul
 require("./utils/promotionsCronJob");
 require("./clients/segmentCronjob");
 
+const reminderAgendaJob = require("./utils/reminderAgendaJob");
 dotenv.config();
+
+// Conexión a la base de datos
 
 // Conexión a la base de datos
 mongoose
@@ -25,6 +28,8 @@ mongoose
     console.log("Conectado a MongoDB");
     weekdayEmailsCron.start();
     weekendEmailsCron.start();
+
+    reminderAgendaJob.start();
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);

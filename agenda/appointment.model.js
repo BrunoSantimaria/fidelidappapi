@@ -1,53 +1,56 @@
 const mongoose = require("mongoose");
 
-const appointmentSchema = new mongoose.Schema({
-  agendaId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Agenda",
-    required: true,
+const AppointmentSchema = new mongoose.Schema(
+  {
+    agendaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Agenda",
+      required: true,
+    },
+    clientName: {
+      type: String,
+      required: true,
+    },
+    clientEmail: {
+      type: String,
+      required: true,
+    },
+    clientPhone: {
+      type: String,
+      required: false,
+    },
+    notes: {
+      type: String,
+      required: false,
+    },
+    startTime: {
+      type: Date,
+      required: true,
+    },
+    endTime: {
+      type: Date,
+      required: true,
+    },
+    numberOfPeople: {
+      type: Number,
+      default: 1,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "confirmed", "cancelled", "completed"],
+      default: "pending",
+    },
+    reminderSent: {
+      type: Boolean,
+      default: false,
+    },
+    cancellationReason: {
+      type: String,
+    },
   },
-  clientId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Client",
-    required: true,
-  },
-  startTime: {
-    type: Date,
-    required: true,
-  },
-  endTime: {
-    type: Date,
-    required: true,
-  },
-  status: {
-    type: String,
-    enum: ["Scheduled", "Cancelled", "Confirmed", "Past", "No Show", "Completed"],
-    default: "Scheduled",
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  { timestamps: true }
+);
 
-appointmentSchema.pre("save", async function (next) {
-  if (!this.isModified("startTime")) return next();
-
-  const agenda = await mongoose.model("Agenda").findById(this.agendaId);
-  if (!agenda) {
-    return next(new Error("Agenda not found"));
-  }
-
-  const endTime = new Date(this.startTime.getTime() + agenda.eventDuration * 60000);
-  this.endTime = endTime;
-
-  next();
-});
-
-const Appointment = mongoose.model("Appointment", appointmentSchema);
-
+const Appointment = mongoose.model("Appointment", AppointmentSchema);
 module.exports = Appointment;

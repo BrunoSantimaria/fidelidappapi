@@ -1,45 +1,90 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const agendaSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        default: 'NoName Agenda'
+const agendaSchema = new mongoose.Schema(
+  {
+    accountId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Account",
+      required: true,
     },
-    description: {
-        type: String,
-        required: true,
-        default: 'NoDescription Agenda'
+    name: {
+      type: String,
+      required: true,
+    },
+    description: String,
+    type: {
+      type: String,
+      enum: ["recurring", "special"],
+      default: "recurring",
+    },
+    requiresCapacity: {
+      type: Boolean,
+      default: false, // false para peluquerías, true para restaurantes
+    },
+    // Para eventos recurrentes
+    recurringConfig: {
+      daysOfWeek: [
+        {
+          type: Number,
+          min: 0,
+          max: 6,
+        },
+      ],
+      timeSlots: [
+        {
+          start: String,
+          end: String,
+          capacity: {
+            type: Number,
+            default: 1, // Por defecto 1 persona/slot
+          },
+        },
+      ],
+      validFrom: Date,
+      validUntil: Date,
+    },
+    // Para eventos especiales
+    specialDates: [
+      {
+        date: Date,
+        timeSlots: [
+          {
+            start: String,
+            end: String,
+            capacity: {
+              type: Number,
+              default: 1,
+            },
+          },
+        ],
+      },
+    ],
+    duration: {
+      type: Number,
+      required: true,
     },
     slots: {
-        type: Number,
-        required: true,
-        default: 1
+      type: Number,
+      required: true,
     },
-  accountId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Account', // Referencia al modelo de cuenta que posee la agenda
-    required: true
+    uniqueLink: {
+      type: String,
+      unique: true,
+    },
+    isDisabled: {
+      type: Boolean,
+      default: false,
+    },
+    disabledReason: {
+      type: String,
+    },
+    disabledAt: {
+      type: Date,
+    },
   },
-  eventDuration: {
-    type: Number, // Duración de cada evento en minutos
-    required: true
-  },
-  availableDays: {
-    type: [Number], // Diáas disponibles para reservar (por ejemplo, [1, 2, 3, 4, 5, 6, 0])
-    required: true,
-    enum: [1, 2, 3, 4, 5, 6, 0]
-  },
-  availableHours: {
-    type: [{ start: String, end: String }], // Horas disponibles para cada día (por ejemplo, [{ start: "09:00", end: "12:00" }])
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now // Fecha de creación de la agenda
+  {
+    timestamps: true,
   }
-});
+);
 
-const Agenda = mongoose.model('Agenda', agendaSchema);
-
-module.exports = Agenda;
+module.exports = mongoose.model("Agenda", agendaSchema);

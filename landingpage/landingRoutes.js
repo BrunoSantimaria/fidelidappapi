@@ -5,7 +5,7 @@ const Promotion = require("../promotions/promotions.model");
 const Client = require("../promotions/client.model");
 const mongoose = require("mongoose");
 const moment = require("moment-timezone");
-
+const Schedule = require("../agenda/agenda.model");
 const jwt = require("jsonwebtoken");
 const { logAction } = require("../logger/logger");
 const { sendRegisterEmail, sendRedemptionEmail } = require("../utils/landingEmails");
@@ -13,22 +13,41 @@ const StrToObjectId = (id) => new mongoose.Types.ObjectId(id);
 const getChileanDateTime = () => {
   return moment().tz("America/Santiago").toDate();
 };
+const Agenda = require("../agenda/agenda.model");
+
 router.get("/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // Primero encontramos la cuenta sin populate para ver las referencias
+    // Primero encontramos la cuenta sin populate
     const accountRaw = await Account.findOne({ slug }).select("name card logo socialMedia googleBusiness landing landingLinks promotions");
     if (!accountRaw) {
       return res.status(404).json({ error: "Cuenta no encontrada" });
     }
-    // Ahora buscamos todas las promociones activas de esta cuenta
+
+    // Buscamos todas las promociones activas
     const allPromotions = await Promotion.find({
       _id: { $in: accountRaw.promotions },
       status: "active",
     });
 
-    // Ahora hacemos la búsqueda con populate para comparar
+    // Buscamos la agenda activa para esta cuenta
+    const activeAgenda = await Agenda.findOne({
+      accountId: accountRaw._id,
+      $or: [
+        {
+          type: "recurring",
+          "recurringConfig.validUntil": { $gte: new Date() },
+          "recurringConfig.validFrom": { $lte: new Date() },
+        },
+        {
+          type: "special",
+          "specialDates.date": { $gte: new Date() },
+        },
+      ],
+    });
+
+    // Hacemos la búsqueda con populate para las promociones
     const account = await Account.findOne({ slug })
       .select("name card logo socialMedia googleBusiness landing landingLinks promotions")
       .populate({
@@ -41,12 +60,31 @@ router.get("/:slug", async (req, res) => {
     const accountData = account.toObject();
     accountData.promotions = accountData.promotions || [];
 
+    // Si hay una agenda activa, la incluimos en el landing
+    if (activeAgenda) {
+      accountData.landing = {
+        ...accountData.landing,
+        agenda: {
+          _id: activeAgenda._id,
+          name: activeAgenda.name,
+          description: activeAgenda.description,
+          type: activeAgenda.type,
+          recurringConfig: activeAgenda.recurringConfig,
+          specialDates: activeAgenda.specialDates,
+          duration: activeAgenda.duration,
+          slots: activeAgenda.slots,
+          uniqueLink: activeAgenda.uniqueLink,
+        },
+      };
+    }
+
     res.json(accountData);
   } catch (error) {
     console.error("Error al obtener los datos:", error);
     res.status(404).json({ error: "Error al obtener los datos del landing page" });
   }
 });
+
 router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
   try {
     const { slug, clientId } = req.params;
@@ -299,7 +337,7 @@ router.post("/register", async (req, res) => {
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     await sendRegisterEmail(email, account);
-    await logAction(email, "Registro y Login", `${name} se registró y tuvo login exitoso en ${formatName(account.name)}`);
+    await logAction(email, "Registro y Login", `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
