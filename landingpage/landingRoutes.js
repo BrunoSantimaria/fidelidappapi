@@ -349,42 +349,109 @@ router.post("/login", async (req, res) => {
     return res.status(500).json({ error: "Error al iniciar sesión" });
   }
 });
-
-// Route to add an activity (you can expand this later)
-router.post("/add-activity", async (req, res) => {
+//Sumar puntos
+router.post("/redeem-points", async (req, res) => {
   try {
-    const { email, accountId, activity } = req.body;
+    const { clientId, accountQr, promotionId } = req.body;
+    let { clientEmail } = req.body;
+    const today = getChileanDateTime();
+    console.log(clientId, clientEmail, promotionId, accountQr);
+    // Validate input
+    if (!accountQr || !promotionId) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+    if (!clientEmail && !clientId) {
+      return res.status(400).json({ error: "Debe proporcionar clientEmail o clientId" });
+    }
+    // Find the promotion
+    const existingPromotionData = await Promotion.findById(promotionId);
+    if (!existingPromotionData) {
+      return res.status(404).json({ error: "Promoción no encontrada" });
+    }
+    console.log(existingPromotionData);
+    // Find the associated account
+    const account = await Account.findOne({ owner: existingPromotionData.userID });
+    if (!account) {
+      return res.status(404).json({ error: "Cuenta asociada no encontrada" });
+    }
 
-    const client = await Client.findOne({
-      email,
-      addedAccounts: { $elemMatch: { accountId } },
-    });
+    // Validate account QR (if needed)
+    if (account.accountQr !== accountQr) {
+      console.log(account.accountQr, accountQr);
+      return res.status(401).json({ error: "Qr inválido." });
+    }
+    let client;
+    if (clientId) {
+      client = await Client.findById(clientId);
+      if (client) {
+        clientEmail = client.email; // Asignar el email del cliente encontrado
+      }
+    } else {
+      client = await Client.findOne({ email: clientEmail });
+    }
 
     if (!client) {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
-    const currentDate = getChileanDateTime();
+
+    // Find the specific promotion for the client
+    const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
+
+    if (!addedPromotion) {
+      return res.status(404).json({ error: "Promoción no encontrada para este cliente" });
+    }
+
+    // Check promotion status and validity
+
+    const todayScans = addedPromotion.visitDates.filter(
+      (entry) => moment(entry.date).tz("America/Santiago").format("YYYY-MM-DD") === moment(today).tz("America/Santiago").format("YYYY-MM-DD")
+    );
+    if (todayScans.length > 0) {
+      return res.status(400).json({ error: "Ya has agregado puntos hoy" });
+    }
+
+    // Determine points to add
+    const pointsToAdd = existingPromotionData.pointsPerVisit || 1;
+
+    // Update promotion points
+    addedPromotion.pointsEarned += pointsToAdd;
+    addedPromotion.actualVisits += 1;
+
+    // Record visit
+    addedPromotion.visitDates.push({
+      date: today,
+      pointsAdded: pointsToAdd,
+    });
+
     // Add activity
     client.activities.push({
-      type: activity.type,
-      description: activity.description,
-      amount: activity.amount,
-      promotionId: activity.promotionId,
-      date: currentDate,
+      type: "earned",
+      description: `Puntos añadidos en promoción: ${existingPromotionData.title}`,
+      amount: pointsToAdd,
+      date: today,
+      accountId: account._id,
+      promotionId: promotionId,
     });
 
-    await client.save();
+    // Check if promotion is completed
+    if (addedPromotion.pointsEarned >= existingPromotionData.pointsRequired) {
+      addedPromotion.status = "Completed";
+    }
 
-    res.status(201).json({
-      message: "Actividad agregada exitosamente",
-      totalPoints: client.totalPoints,
+    // Save client updates
+    await client.save();
+    logAction(client.email, "Punto añadido", `Punto añadido: ${existingPromotionData.title}, en ${account.name}`);
+    res.status(200).json({
+      message: "Puntos añadidos exitosamente",
+      pointsEarned: addedPromotion.pointsEarned,
+      promotionStatus: addedPromotion.status,
     });
   } catch (error) {
-    console.error("Error adding activity:", error);
-    res.status(500).json({ error: "Error al agregar la actividad" });
+    console.error("Error al canjear puntos:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
-
+//Canjear promocion one shot
 router.post("/redeem-hot-promotion", async (req, res) => {
   try {
     const { email, accountId, promotionId } = req.body;
@@ -450,72 +517,7 @@ router.post("/redeem-hot-promotion", async (req, res) => {
     res.status(500).json({ error: "Error al canjear la promoción" });
   }
 });
-
-// QR Point Scanning Route
-router.post("/scan-qr-points", async (req, res) => {
-  try {
-    const { clientEmail, promotionId, accountQr } = req.body;
-    console.log("🚀 ~ router.post ~ clientEmail, promotionId, accountQr:", clientEmail, promotionId, accountQr);
-    const today = getChileanDateTime();
-    // Validate input
-    if (!accountQr || !promotionId || !clientEmail) {
-      return res.status(400).json({ error: "Datos incompletos" });
-    }
-
-    // Find client
-    const client = await Client.findOne({
-      email: clientEmail,
-      addedpromotions: { $elemMatch: { promotion: promotionId } },
-    });
-
-    if (!client) {
-      return res.status(404).json({ error: "Cliente no encontrado" });
-    }
-
-    // Find specific added promotion
-    const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
-
-    // Check if point already added today
-    const todayScans = addedPromotion.visitDates.filter(
-      (entry) => moment(entry.date).tz("America/Santiago").format("YYYY-MM-DD") === moment(today).tz("America/Santiago").format("YYYY-MM-DD")
-    );
-
-    if (todayScans.length > 0) {
-      return res.status(400).json({ error: "Ya has agregado puntos hoy" });
-    }
-
-    // Add point
-    const pointsToAdd = 1; // Default point
-    addedPromotion.pointsEarned += pointsToAdd;
-
-    // Record visit
-    addedPromotion.visitDates.push({
-      date: getChileanDateTime(),
-      pointsAdded: pointsToAdd,
-    });
-
-    // Add activity
-    client.activities.push({
-      type: "earned",
-      description: "Puntos añadidos por escaneo QR",
-      amount: pointsToAdd,
-      date: today,
-    });
-
-    await client.save();
-    const account = await Account.findOne({ accountQr: accountQr });
-    logAction(client.email, "scan", `Punto añadido: ${addedPromotion.title}, en ${account.name}`);
-
-    res.status(200).json({
-      message: "Punto añadido exitosamente",
-      pointsEarned: addedPromotion.pointsEarned,
-    });
-  } catch (error) {
-    console.error("Error scanning QR points:", error);
-    res.status(500).json({ error: "Error al escanear puntos" });
-  }
-});
-
+//Canjear puntos por regalos
 router.post("/redeem-promotion-reward", async (req, res) => {
   try {
     const { email, accountId, promotionId, rewardId, points } = req.body;
@@ -645,107 +647,108 @@ router.post("/redeem-promotion-reward", async (req, res) => {
   }
 });
 
-router.post("/redeem-points", async (req, res) => {
+
+
+// QR Point Scanning Route
+router.post("/scan-qr-points", async (req, res) => {
   try {
-    const { clientId, accountQr, promotionId } = req.body;
-    let { clientEmail } = req.body;
+    const { clientEmail, promotionId, accountQr } = req.body;
+    console.log("🚀 ~ router.post ~ clientEmail, promotionId, accountQr:", clientEmail, promotionId, accountQr);
     const today = getChileanDateTime();
-    console.log(clientId, clientEmail, promotionId, accountQr);
     // Validate input
-    if (!accountQr || !promotionId) {
+    if (!accountQr || !promotionId || !clientEmail) {
       return res.status(400).json({ error: "Datos incompletos" });
     }
-    if (!clientEmail && !clientId) {
-      return res.status(400).json({ error: "Debe proporcionar clientEmail o clientId" });
-    }
-    // Find the promotion
-    const existingPromotionData = await Promotion.findById(promotionId);
-    if (!existingPromotionData) {
-      return res.status(404).json({ error: "Promoción no encontrada" });
-    }
-    console.log(existingPromotionData);
-    // Find the associated account
-    const account = await Account.findOne({ owner: existingPromotionData.userID });
-    if (!account) {
-      return res.status(404).json({ error: "Cuenta asociada no encontrada" });
-    }
 
-    // Validate account QR (if needed)
-    if (account.accountQr !== accountQr) {
-      console.log(account.accountQr, accountQr);
-      return res.status(401).json({ error: "Qr inválido." });
-    }
-    let client;
-    if (clientId) {
-      client = await Client.findById(clientId);
-      if (client) {
-        clientEmail = client.email; // Asignar el email del cliente encontrado
-      }
-    } else {
-      client = await Client.findOne({ email: clientEmail });
-    }
+    // Find client
+    const client = await Client.findOne({
+      email: clientEmail,
+      addedpromotions: { $elemMatch: { promotion: promotionId } },
+    });
 
     if (!client) {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    // Find the specific promotion for the client
+    // Find specific added promotion
     const addedPromotion = client.addedpromotions.find((promo) => promo.promotion.toString() === promotionId);
 
-    if (!addedPromotion) {
-      return res.status(404).json({ error: "Promoción no encontrada para este cliente" });
-    }
-
-    // Check promotion status and validity
-
+    // Check if point already added today
     const todayScans = addedPromotion.visitDates.filter(
       (entry) => moment(entry.date).tz("America/Santiago").format("YYYY-MM-DD") === moment(today).tz("America/Santiago").format("YYYY-MM-DD")
     );
+
     if (todayScans.length > 0) {
       return res.status(400).json({ error: "Ya has agregado puntos hoy" });
     }
 
-    // Determine points to add
-    const pointsToAdd = existingPromotionData.pointsPerVisit || 1;
-
-    // Update promotion points
+    // Add point
+    const pointsToAdd = 1; // Default point
     addedPromotion.pointsEarned += pointsToAdd;
-    addedPromotion.actualVisits += 1;
 
     // Record visit
     addedPromotion.visitDates.push({
-      date: today,
+      date: getChileanDateTime(),
       pointsAdded: pointsToAdd,
     });
 
     // Add activity
     client.activities.push({
       type: "earned",
-      description: `Puntos añadidos en promoción: ${existingPromotionData.title}`,
+      description: "Puntos añadidos por escaneo QR",
       amount: pointsToAdd,
       date: today,
-      accountId: account._id,
-      promotionId: promotionId,
     });
 
-    // Check if promotion is completed
-    if (addedPromotion.pointsEarned >= existingPromotionData.pointsRequired) {
-      addedPromotion.status = "Completed";
-    }
-
-    // Save client updates
     await client.save();
-    logAction(client.email, "Punto añadido", `Punto añadido: ${existingPromotionData.title}, en ${account.name}`);
+    const account = await Account.findOne({ accountQr: accountQr });
+    logAction(client.email, "scan", `Punto añadido: ${addedPromotion.title}, en ${account.name}`);
+
     res.status(200).json({
-      message: "Puntos añadidos exitosamente",
+      message: "Punto añadido exitosamente",
       pointsEarned: addedPromotion.pointsEarned,
-      promotionStatus: addedPromotion.status,
     });
   } catch (error) {
-    console.error("Error al canjear puntos:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    console.error("Error scanning QR points:", error);
+    res.status(500).json({ error: "Error al escanear puntos" });
   }
 });
+
+// Route to add an activity (you can expand this later)
+router.post("/add-activity", async (req, res) => {
+  try {
+    const { email, accountId, activity } = req.body;
+
+    const client = await Client.findOne({
+      email,
+      addedAccounts: { $elemMatch: { accountId } },
+    });
+
+    if (!client) {
+      return res.status(404).json({ error: "Cliente no encontrado" });
+    }
+    const currentDate = getChileanDateTime();
+    // Add activity
+    client.activities.push({
+      type: activity.type,
+      description: activity.description,
+      amount: activity.amount,
+      promotionId: activity.promotionId,
+      date: currentDate,
+    });
+
+    await client.save();
+
+    res.status(201).json({
+      message: "Actividad agregada exitosamente",
+      totalPoints: client.totalPoints,
+    });
+  } catch (error) {
+    console.error("Error adding activity:", error);
+    res.status(500).json({ error: "Error al agregar la actividad" });
+  }
+});
+
 
 const formatName = (name) => {
   return name

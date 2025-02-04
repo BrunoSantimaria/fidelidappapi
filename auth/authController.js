@@ -7,6 +7,7 @@ const Plan = require("../plans/Plans.model.js");
 const Client = require("../promotions/client.model.js");
 const log = require("../logger/logger.js");
 const { generateQr, sendQrCode } = require("../utils/generateQrKeys.js");
+const {sendRegisterEmail} = require("../utils/emailSender.js");
 
 // Constantes para mensajes de error
 const ERROR_MESSAGES = {
@@ -195,8 +196,11 @@ const addUserToFidelidappAccount = async (email, name) => {
         clients: { id: client._id, name: client.name, email: client.email },
       },
     });
+    //Send register email
+    await sendRegisterEmail(client.name, client.email);
 
     console.log("User successfully added to Fidelidapp:", normalizedEmail);
+
     log.logAction(normalizedEmail, "user_added", "Usuario agregado a Fidelidapp", "#leads");
   } catch (error) {
     console.error("Error adding user to Fidelidapp account:", error);
@@ -227,7 +231,6 @@ exports.current = async (req, res) => {
       const qrCode = await generateQr();
       await Account.findByIdAndUpdate(account._id, { accountQr: qrCode });
       account.accountQr = qrCode;
-      await sendQrCode(account);
     }
 
     res.status(200).json({

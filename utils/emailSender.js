@@ -188,11 +188,11 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
     throw error;
   }
 };
-const sendRegisterEmail = async (account) => {
+const sendRegisterEmail = async (name, email) => {
   const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // URL del logo
   const subject = "¡Bienvenido a la familia Fidelidapp! 🎉";
   const header = "¡Tu negocio está a punto de crecer!";
-  const to = account.userEmails; // Dirección de email del destinatario
+  const to = email; // Dirección de email del destinatario
 
   // Contenido del email con el logo incluido
   const html = `
@@ -212,7 +212,7 @@ const sendRegisterEmail = async (account) => {
         </div>
         
         <h1 style="color: #5b7898; text-align: center; font-size: 24px; margin-bottom: 20px;">${header}</h1>
-        <p style="margin: 0 0 10px;">¡Hola! 👋</p>
+        <p style="margin: 0 0 10px;">¡Hola ${name}! 👋</p>
         <p style="margin: 0 0 10px;">Estamos emocionados de tenerte como parte de la familia Fidelidapp. Has dado el primer paso para transformar la forma en que conectas con tus clientes.</p>
 
         <p style="margin: 20px 0 10px;">Con Fidelidapp podrás:</p>

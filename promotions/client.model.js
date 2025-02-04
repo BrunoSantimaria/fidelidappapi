@@ -4,7 +4,7 @@ const ActivitySchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["earned", "redeemed", "visit", "reward_redeemed", "visit_redeemed"],
+      enum: ["earned", "redeemed", "visit", "reward_redeemed", "visit_redeemed", "rating_given"],
       required: true,
     },
     description: {
@@ -111,6 +111,10 @@ const ClientSchema = new mongoose.Schema({
   totalPoints: {
     type: Number,
     default: 0,
+  },
+  tags: {
+    type: [String], // Array of tags
+    default: [],
   },
 });
 

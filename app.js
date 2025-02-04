@@ -14,6 +14,7 @@ require("./utils/generateQrKeys");
 require("./utils/leadsemailparser");
 const { weekdayEmailsCron, weekendEmailsCron } = require("./utils/ProcessScheduledEmails");
 require("./utils/promotionsCronJob");
+require("./clients/segmentCronjob");
 
 dotenv.config();
 
@@ -29,7 +30,7 @@ mongoose
     console.error("Error conectando a MongoDB:", err);
   });
 
-// Resto de tu código...
+// Reset email counts at the beginning of each month
 cron.schedule("0 4 1 * *", async () => { 
   try {
     console.log("Checking and resetting email counts...");

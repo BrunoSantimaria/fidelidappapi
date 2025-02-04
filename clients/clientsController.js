@@ -2,60 +2,57 @@ const Client = require("../promotions/client.model");
 const Account = require("../accounts/Account.model.js");
 const { StrToObjectId } = require("../utils/StrToObjectId");
 const Promotion = require("../promotions/promotions.model.js"); // Importa el modelo de promociones
+const moment = require('moment-timezone');
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
+const Segment = require("./segment.model"); // New model for storing segments
+const { mapFilters, getFilteredClients  } = require("./clientUtils");
+
+
 
 exports.getAccountClients = async (req, res) => {
-  const { accountId } = req.query;
-  const accountIdObj = StrToObjectId(accountId);
+  // Encuentra la cuenta por el email del usuario
+  const account = await Account.findOne({ userEmails: req.email }).populate("promotions", "_id systemType");
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const accountIdObj = StrToObjectId(account._id);
+
+  console.log("Getting clients for account:", accountIdObj);
 
   try {
     // Realizar búsquedas en paralelo usando Promise.all
-    const [account, clients] = await Promise.all([
-      Account.findById(accountIdObj).populate("promotions", "_id systemType"),
+    const [clients] = await Promise.all([
       Client.find({ "addedAccounts.accountId": accountIdObj }),
     ]);
-
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
 
     if (!clients.length) {
       return res.status(200).json({ clients: [] });
     }
 
     // Crear un Map para acceso más rápido a las promociones
-    const promotionsMap = new Map(account.promotions.map((promo) => [promo._id.toString(), promo.systemType]));
+    //const promotionsMap = new Map(account.promotions.map((promo) => [promo._id.toString(), promo.systemType]));
 
-    // Procesar clientes de manera más eficiente
-    const updatedClients = clients.map((client) => {
-      const filteredPromotions = client.addedpromotions
-        .filter((promo) => promotionsMap.has(promo.promotion.toString()))
-        .map((promo) => ({
-          ...promo.toObject(),
-          systemType: promotionsMap.get(promo.promotion.toString()),
-        }));
+    // // Procesar clientes de manera más eficiente
+    // const updatedClients = clients.map((client) => {
+    //   const filteredPromotions = client.addedpromotions
+    //     .filter((promo) => promotionsMap.has(promo.promotion.toString()))
+    //     .map((promo) => ({
+    //       ...promo.toObject(),
+    //       systemType: promotionsMap.get(promo.promotion.toString()),
+    //     }));
 
-      return {
-        ...client.toObject(),
-        addedpromotions: filteredPromotions,
-        addedAccounts: [client.addedAccounts.find((acc) => acc.accountId.equals(accountIdObj))].filter(Boolean),
-      };
-    });
+    //   return {
+    //     ...client.toObject(),
+    //     //addedpromotions: filteredPromotions,
+    //     addedAccounts: [client.addedAccounts.find((acc) => acc.accountId.equals(accountIdObj))].filter(Boolean),
+    //   };
+    // });
 
-    return res.status(200).json({ clients: updatedClients });
+    return res.status(200).json({ clients });
   } catch (error) {
     console.error("Error fetching and updating clients:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
-// Función que define si una promoción es relevante para un cliente
-function isRelevantPromotionForClient(client, promotion) {
-  // Aquí puedes definir tu propia lógica para determinar si la promoción es relevante.
-  // Por ejemplo, se puede usar el email del cliente o algún otro campo que relacione al cliente con la promoción.
-  // En este caso, la comparación es basada en email, pero puedes ajustarla según tus necesidades.
-
-  return client.email === promotion.userID.email;
-}
 
 // Añadir un cliente
 exports.addClient = async (req, res) => {
@@ -218,35 +215,37 @@ exports.addClientsBatch = async (req, res) => {
 exports.deleteClient = async (req, res) => {
   const { accountId, clientId } = req.body;
 
-  const accountIdObj = StrToObjectId(accountId);
-  const clientIdObj = StrToObjectId(clientId);
+  console.log("Deleting client:", clientId, "from account:", accountId);
 
   try {
-    // Buscar la cuenta
-    const account = await Account.findById(accountIdObj);
+    // Ensure the account exists
+    const account = await Account.findById(accountId);
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // Buscar el cliente
-    const client = await Client.findById(clientIdObj);
+    // Ensure the client exists
+    const client = await Client.findById(clientId);
     if (!client) {
       return res.status(404).json({ message: "Client not found" });
     }
 
-    // Eliminar la relación de la cuenta con el cliente (usando $pull para eficiencia)
-    await Account.findByIdAndUpdate(accountIdObj, {
-      $pull: { clients: { id: clientIdObj } },
+    // Remove the client ID from the account's clients array
+    await Account.findByIdAndUpdate(accountId, {
+      $pull: { clients: clientId }, // Assuming 'clients' is an array of ObjectIds
     });
 
-    // Eliminar la relación del cliente con la cuenta
-    await Client.findByIdAndUpdate(clientIdObj, {
-      $pull: { addedAccounts: { accountId: accountIdObj } },
+    // Remove the account ID from the client's addedAccounts array
+    await Client.findByIdAndUpdate(clientId, {
+      $pull: { addedAccounts: { accountId } }, // Ensure addedAccounts contains objects with accountId
     });
+
+    // Fetch the updated account to return the updated clients list
+    const updatedAccount = await Account.findById(accountId).populate("clients"); // Adjust populate as needed
 
     return res.status(200).json({
       message: "Client deleted successfully",
-      clients: account.clients, // Devuelve la lista actualizada de clientes en la cuenta
+      clients: updatedAccount.clients, // Updated list of clients
     });
   } catch (error) {
     console.error("Error deleting client:", error);
@@ -296,5 +295,109 @@ exports.updateClient = async (req, res) => {
   } catch (error) {
     console.error("Error updating client:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+exports.getFilteredAccountClients = async (req, res) => {
+  const { filters } = req.body;
+
+  if (!filters) {
+    return res.status(400).json({ error: "Missing filters in request body" });
+  }
+
+  try {
+    // Encuentra la cuenta por el email del usuario
+    const account = await Account.findOne({ userEmails: req.email }).populate("promotions", "_id systemType");
+    if (!account) return res.status(404).json({ error: "Account not found" });
+    const accountIdObj = StrToObjectId(account._id);
+
+    // Parsea y traduce los filtros
+    const parsedFilters = typeof filters === "string" ? JSON.parse(filters) : filters;
+    //Apply translation mapfilters function
+    const translatedFilters = await mapFilters(parsedFilters);
+    console.log("Aplicando filtros:", translatedFilters);
+
+    const filteredClients = await getFilteredClients(translatedFilters, accountIdObj)
+
+    return res.status(200).json({ totalClients: filteredClients.length, clients: filteredClients });
+  } catch (error) {
+    console.error("Error processing filters:", error);
+    return res.status(500).json({ error: "An error occurred while processing filters." });
+  }
+};
+
+// Create new Segment
+exports.addTagToClients = async (req, res) => {
+
+  try {
+
+    const { clients, tag, filters } = req.body;
+
+    // Encuentra la cuenta por el email del usuario
+    const account = await Account.findOne({ userEmails: req.email }).populate("promotions", "_id systemType");
+    if (!account) return res.status(404).json({ error: "Account not found" });
+    const accountId = StrToObjectId(account._id);
+
+    console.log("Adding tag to clients:", tag, "for account:", accountId, "with filters:", filters);
+
+    if (!tag) return res.status(400).json({ message: "Tag is required" });
+    if (!clients || !Array.isArray(clients) || clients.length === 0) {
+      return res.status(400).json({ message: "A valid list of clients is required" });
+    }
+    if (!filters || typeof filters !== "object") {
+      return res.status(400).json({ message: "Filters are required to save segment" });
+    }
+    if (!accountId) {
+      return res.status(400).json({ message: "Account ID is required" });
+    }
+
+    // Extract valid client IDs
+    const clientIds = clients
+      .map(client => (client._id ? client._id.toString() : null))
+      .filter(id => id && ObjectId.isValid(id))
+      .map(id => new ObjectId(id));
+
+    if (clientIds.length === 0) {
+      return res.status(400).json({ message: "No valid client IDs found" });
+    }
+
+    // Parsea y traduce los filtros
+    const parsedFilters = typeof filters === "string" ? JSON.parse(filters) : filters;
+    //Apply translation mapfilters function
+    const translatedFilters = mapFilters(parsedFilters);
+    console.log("Aplicando filtros:", translatedFilters);
+
+    // 1️⃣ Save Segment Data for Future Cron Job Processing
+    await Segment.updateOne(
+      { tag, accountId }, // Ensure only one segment per tag per account
+      { $set: { filters: translatedFilters, accountId, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+      { upsert: true } // Create if not exists, update if exists
+    );
+
+    // 2️⃣ Add Tag to Selected Clients
+    const result = await Client.updateMany(
+      { _id: { $in: clientIds } },
+      { $addToSet: { tags: tag } } // Prevent duplicates
+    );
+
+    res.json({
+      message: "Tag added to selected clients and segment filters stored",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error adding tag", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
+exports.getDistinctTags = async (req, res) => {
+  console.log("Fetching distinct tags...");
+  try {
+    const tags = await Client.distinct("tags"); // Get unique tags from all clients
+
+    res.json(tags);
+  } catch (error) {
+    console.error("Error fetching distinct tags:", error);
+    res.status(500).json({ message: "Server error", error });
   }
 };

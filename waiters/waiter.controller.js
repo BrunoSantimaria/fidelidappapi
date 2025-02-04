@@ -164,6 +164,17 @@ exports.waiterController = {
 
       await logAction(client.email, "Valoración añadida", `Mesero: ${waiter.name}, En la cuenta: ${account.name}, Rating: ${rating}, Comentario: ${comment}`);
 
+      // Add activity to client
+      client.activities.push({
+        type: "rating_given",
+        description: `Valoración de ${rating} estrellas para ${waiter.name}`,
+        //amount: 0, // No points for 'visits'
+        //date: today,
+        accountId: account._id,
+        //promotionId: promotionId,
+      });
+      client.save();
+
       // Enviar correo si es 5 estrellas y existe googleBusiness
       if (rating === 5 && account.landing.googleBusiness) {
         if (!client.email) {
@@ -186,9 +197,8 @@ exports.waiterController = {
                 
                 <p style="color: #666; font-size: 16px;">Hola ${client.name || "Cliente"},</p>
                 
-                <p style="color: #666; font-size: 16px;">Muchas gracias por tu valoración de 5 estrellas para ${
-                  waiter.name
-                }. Nos encantaría que compartieras tu experiencia en Google:</p>
+                <p style="color: #666; font-size: 16px;">Muchas gracias por tu valoración de 5 estrellas para ${waiter.name
+            }. Nos encantaría que compartieras tu experiencia en Google:</p>
                 
                 <div style="text-align: center; margin: 30px 0;">
                   <a href="${account.landing.googleBusiness}" 
@@ -197,56 +207,51 @@ exports.waiterController = {
                   </a>
                 </div>
 
-                ${
-                  account.socialMedia
-                    ? `
+                ${account.socialMedia
+              ? `
                   <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                     <p style="color: #666; margin-bottom: 15px;">Síguenos en nuestras redes sociales:</p>
                     <div style="text-align: center; width: 100%;">
-                      ${
-                        account.socialMedia.instagram
-                          ? `
+                      ${account.socialMedia.instagram
+                ? `
                         <a href="${account.socialMedia.instagram}" style="display: inline-block; margin: 0 10px;">
                           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/132px-Instagram_logo_2016.svg.png" 
                                alt="Instagram" style="width: 30px; height: 30px;">
                         </a>`
-                          : ""
-                      }
+                : ""
+              }
                       
-                      ${
-                        account.socialMedia.facebook
-                          ? `
+                      ${account.socialMedia.facebook
+                ? `
                         <a href="${account.socialMedia.facebook}" style="display: inline-block; margin: 0 10px;">
                           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Facebook_Logo_%282019%29.png/132px-Facebook_Logo_%282019%29.png" 
                                alt="Facebook" style="width: 30px; height: 30px;">
                         </a>`
-                          : ""
-                      }
+                : ""
+              }
                       
-                      ${
-                        account.socialMedia.website
-                          ? `
+                      ${account.socialMedia.website
+                ? `
                         <a href="${account.socialMedia.website}" style="display: inline-block; margin: 0 10px;">
                           <img src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png" 
                                alt="Website" style="width: 30px; height: 30px;">
                         </a>`
-                          : ""
-                      }
+                : ""
+              }
                       
-                      ${
-                        account.socialMedia.whatsapp
-                          ? `
+                      ${account.socialMedia.whatsapp
+                ? `
                         <a href="https://wa.me/${account.socialMedia.whatsapp}" style="display: inline-block; margin: 0 10px;">
                           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/WhatsApp.svg/132px-WhatsApp.svg.png" 
                                alt="WhatsApp" style="width: 30px; height: 30px;">
                         </a>`
-                          : ""
-                      }
+                : ""
+              }
                     </div>
                   </div>
                 `
-                    : ""
-                }
+              : ""
+            }
               </div>
             </div>
           `,
