@@ -2,6 +2,7 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Configuración del API Key para Google Generative AI
 const api_gemini = process.env.API_GEMINI;
+const MODEL_GEMINI = "gemini-1.5-flash";
 
 if (!api_gemini) {
   console.error("No se encontró la API_GEMINI en las variables de entorno.");
@@ -12,14 +13,16 @@ if (!api_gemini) {
 const genAI = new GoogleGenerativeAI(api_gemini);
 
 const system_instruct =
-  "Eres un asistente virtual amigable de un restaurante. Usa esta información para responder preguntas sobre los platos, hacer recomendaciones y ayudar a los clientes. " +
+  "Eres un garzón virtual amigable de un restaurante. Usa esta información para responder preguntas sobre los platos, hacer recomendaciones y ayudar a los clientes. " +
   "Si te preguntan por el plato del día, recomienda uno de los platos principales al azar. Si te preguntan por ingredientes específicos o información que no está en el menú, " +
-  "indica amablemente que solo puedes proporcionar la información que está en el menú. Mantén las respuestas concisas y amigables. Responde en español y refiriendote por el nombre.";
+  "indica amablemente que solo puedes proporcionar la información que está en el menú y promociones. (si es que estén disponibles) Mantén las respuestas concisas y amigables. Responde en español, decorado con Markdown y refiriendote por el nombre.";
 
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash-8b",
+  model: MODEL_GEMINI,
   systemInstruction: system_instruct,
 });
+
+console.log("🚀 El modelo de Google Generative AI está listo para generar respuestas.");
 
 /**
  * Generar una respuesta del chatbot utilizando Google Generative AI.
@@ -39,9 +42,12 @@ exports.generateResponse = async (req, res) => {
     const client_data_json = JSON.stringify(client_data);
     const menu_json = info?.menu ? JSON.stringify(info.menu) : "Menú no disponible.";
 
-    const prompt = `${message}\nInformación del cliente: ${client_data_json}\nMenú: ${menu_json}`;
+    const promotions = info?.promotions ? JSON.stringify(info.promotions) : "No hay promociones disponibles.";
+    //console.log("Promociones:", promotions);
 
-    console.log("🔹 Generando respuesta con el prompt:", prompt);
+    const prompt = `${message}\nInformación del cliente: ${client_data_json}\nMenú: ${menu_json}\nPromociones: ${promotions}`;
+
+    //console.log("🔹 Generando respuesta con el prompt:", prompt);
 
     // Generar contenido utilizando el modelo
     const result = await model.generateContent(prompt);
