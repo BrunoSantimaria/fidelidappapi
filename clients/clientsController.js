@@ -392,8 +392,14 @@ exports.addTagToClients = async (req, res) => {
 
 exports.getDistinctTags = async (req, res) => {
   console.log("Fetching distinct tags...");
+  // Encuentra la cuenta por el email del usuario
+  const account = await Account.findOne({ userEmails: req.email }).populate("promotions", "_id systemType");
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const accountId = StrToObjectId(account._id);
+
   try {
-    const tags = await Client.distinct("tags"); // Get unique tags from all clients
+    // Get unique tags from the account
+    const tags = await Client.distinct("tags", { "addedAccounts.accountId": accountId });
 
     res.json(tags);
   } catch (error) {
