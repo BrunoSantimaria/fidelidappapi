@@ -19,7 +19,7 @@ const client = twilio(accountSid, authToken);
 
 // Create a new SMS campaign
 const createCampaign = async (req, res) => {
-    const { name, message } = req.body;
+    const { name, message, contactSource, tag } = req.body;
     console.log("Creando Campaña SMS:", name, message);
 
     if (!name || !message) {
@@ -44,12 +44,22 @@ const createCampaign = async (req, res) => {
         return res.status(400).json({ success: false, error: "SMS usage limit exceeded" });
     }
 
+    let clients = [];
 
-    // Find all clients associated with the given accountId and having a phone number
-    const clients = await Client.find({
-        addedAccounts: { $elemMatch: { accountId: account._id } },
-        phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
-    }).select("name phoneNumber");
+    // If contact source different than csv or clients, then we need to lookt the clients with the tag and account id
+    if (contactSource !== "clients") {
+        clients = await Client.find({
+            addedAccounts: { $elemMatch: { accountId: account._id } }, // Ensure the account is associated with the client
+            phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
+            tags: { $in: [tag] }, // Ensure the tag is in the tags array
+        }).select("name phoneNumber");
+    } else {
+        // Find all clients associated with the given accountId and having a phone number
+        clients = await Client.find({
+            addedAccounts: { $elemMatch: { accountId: account._id } },
+            phoneNumber: { $exists: true, $ne: '' }, // Ensure phoneNumber exists and is not empty
+        }).select("name phoneNumber");
+    }
 
     if (clients.length === 0) {
         return res.status(404).json({

@@ -391,15 +391,21 @@ exports.addTagToClients = async (req, res) => {
 };
 
 exports.getDistinctTags = async (req, res) => {
-  console.log("Fetching distinct tags...");
-  // Encuentra la cuenta por el email del usuario
+  
+  // Find the account by the user's email
   const account = await Account.findOne({ userEmails: req.email }).populate("promotions", "_id systemType");
   if (!account) return res.status(404).json({ error: "Account not found" });
+
   const accountId = StrToObjectId(account._id);
 
   try {
-    // Get unique tags from the account
-    const tags = await Client.distinct("tags", { "addedAccounts.accountId": accountId });
+    // Aggregation pipeline to get distinct tags and their count
+    const tags = await Client.aggregate([
+      { $match: { "addedAccounts.accountId": accountId } }, // Filter clients by accountId
+      { $unwind: "$tags" }, // Flatten the tags array
+      { $group: { _id: "$tags", count: { $sum: 1 } } }, // Group by tag and count occurrences
+      { $sort: { count: -1 } } // Optional: Sort by count descending
+    ]);
 
     res.json(tags);
   } catch (error) {
@@ -407,3 +413,4 @@ exports.getDistinctTags = async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
+
