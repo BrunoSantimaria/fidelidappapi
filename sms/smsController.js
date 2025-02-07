@@ -81,7 +81,8 @@ const createCampaign = async (req, res) => {
         const smsPromises = clients.map(async (cliente) => {
             try {
                 // Replace {nombreCliente} in the message with the actual client name
-                const personalizedMessage = message.replace("{nombreCliente}", cliente.name);
+                const firstName = cliente.name.split(" ")[0]; 
+                const personalizedMessage = message.replace("{nombreCliente}", firstName);
                 console.log(`Sending SMS to ${cliente.phoneNumber}: ${personalizedMessage}`);
 
                 // Send the SMS using Twilio
