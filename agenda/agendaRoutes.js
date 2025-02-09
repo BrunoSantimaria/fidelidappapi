@@ -12,8 +12,12 @@ const {
   cancelAppointment,
   rejectAppointment,
   disableAgenda,
+  confirmAppointmentByToken,
+  cancelAppointmentByToken,
+  getPendingAppointmentsCount,
 } = require("./agendaController");
 const Agenda = require("./agenda.model");
+const Appointment = require("./appointment.model");
 
 // Agregar esta ruta para obtener una agenda específica
 router.get("/:agendaId", async (req, res) => {
@@ -76,5 +80,66 @@ router.post("/appointments/:appointmentId/reject", rejectAppointment);
 
 // Ruta para deshabilitar agenda
 router.post("/:agendaId/disable", disableAgenda);
+
+// Ruta para obtener detalles de la cita por token de confirmación
+router.get("/appointments/token/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const appointment = await Appointment.findOne({
+      confirmationToken: token,
+      confirmationTokenExpires: { $gt: new Date() },
+    }).populate("agendaId");
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Token inválido o expirado",
+      });
+    }
+
+    res.json(appointment);
+  } catch (error) {
+    console.error("Error al obtener la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Nueva ruta para obtener detalles de la cita por token de cancelación
+router.get("/appointments/cancel-token/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const appointment = await Appointment.findOne({
+      cancellationToken: token,
+      status: "confirmed",
+    }).populate("agendaId");
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Token inválido o cita no encontrada",
+      });
+    }
+
+    // Verificar si la cita puede ser cancelada (24 horas antes)
+    if (!appointment.isCancellable()) {
+      return res.status(400).json({
+        message: "No es posible cancelar la cita con menos de 24 horas de anticipación",
+      });
+    }
+
+    res.json(appointment);
+  } catch (error) {
+    console.error("Error al obtener la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/appointments/token/:token", confirmAppointmentByToken);
+
+// Agregar nueva ruta para cancelación por token
+router.post("/appointments/cancel-token/:token", cancelAppointmentByToken);
+
+// Nueva ruta para obtener el conteo de citas pendientes de un cliente
+router.get("/appointments/pending", getPendingAppointmentsCount);
 
 module.exports = router;

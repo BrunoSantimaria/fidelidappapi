@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const AppointmentSchema = new mongoose.Schema(
   {
@@ -48,9 +49,29 @@ const AppointmentSchema = new mongoose.Schema(
     cancellationReason: {
       type: String,
     },
+    confirmationToken: {
+      type: String,
+      default: () => crypto.randomBytes(32).toString("hex"),
+    },
+    confirmationTokenExpires: {
+      type: Date,
+      default: () => new Date(+new Date() + 24 * 60 * 60 * 1000), // 24 horas
+    },
+    cancellationToken: {
+      type: String,
+      default: () => crypto.randomBytes(32).toString("hex"),
+    },
   },
   { timestamps: true }
 );
+
+// Agregar método para verificar si la cita puede ser cancelada
+AppointmentSchema.methods.isCancellable = function () {
+  const now = new Date();
+  const appointmentDate = new Date(this.startTime);
+  const hoursUntilAppointment = (appointmentDate - now) / (1000 * 60 * 60);
+  return hoursUntilAppointment > 24;
+};
 
 const Appointment = mongoose.model("Appointment", AppointmentSchema);
 module.exports = Appointment;
