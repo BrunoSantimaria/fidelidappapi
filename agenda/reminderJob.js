@@ -3,8 +3,8 @@ const Appointment = require("./appointment.model");
 const { sendReminderEmails } = require("./agendaMailing");
 const { addHours, subHours } = require("date-fns");
 
-// Ejecutar cada 5 minutos
-cron.schedule("*/5 * * * *", async () => {
+// Función para enviar recordatorios de citas
+const sendAppointmentReminders = async () => {
   try {
     const now = new Date();
     const oneHourFromNow = addHours(now, 1);
@@ -21,11 +21,15 @@ cron.schedule("*/5 * * * *", async () => {
 
     for (const appointment of appointments) {
       await sendReminderEmails(appointment);
-
       // Marcar que el recordatorio fue enviado
       await Appointment.findByIdAndUpdate(appointment._id, { reminderSent: true });
     }
   } catch (error) {
     console.error("Error en el job de recordatorios:", error);
   }
-});
+};
+
+// Ejecutar cada 5 minutos
+cron.schedule("*/5 * * * *", sendAppointmentReminders);
+
+module.exports = { sendAppointmentReminders };

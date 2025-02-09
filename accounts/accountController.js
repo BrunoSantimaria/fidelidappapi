@@ -151,10 +151,11 @@ const getLandingSettings = async (req, res) => {
     }
 
     console.log("DEBUG - account.landing:", JSON.stringify(account.landing, null, 2));
-    console.log(account.landing);
+    console.log(account.slug);
     // Construir landingData incluyendo todos los campos
     const landingData = {
       title: account.landing?.title || "",
+      slug: account.slug || "",
       subtitle: account.landing?.subtitle || "",
       name: account.landing?.name || "",
       colorPalette: account.landing?.colorPalette || "",
@@ -181,7 +182,7 @@ const getLandingSettings = async (req, res) => {
       menuCategories: landingData.menu.categories?.length || 0, // Check if menu.categories exists
     });
 
-    res.status(200).json({ landing: account.landing });
+    res.status(200).json({ landing: landingData });
   } catch (error) {
     console.error("❌ Error fetching landing settings:", error);
     res.status(500).json({ error: "Internal server error" });

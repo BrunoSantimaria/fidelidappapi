@@ -5,13 +5,13 @@ const { startOfDay, endOfDay } = require("date-fns");
 const { generateUniqueLink } = require("../utils/generateUniqueLink");
 const mongoose = require("mongoose");
 const { logAction } = require("../logger/logger");
-const { sendStatusChangeEmails } = require("./agendaMailing");
+const { sendStatusChangeEmails, sendAppointmentRequestEmails } = require("./agendaMailing");
 
 const createAgenda = async (req, res) => {
   try {
-    const { name, description, type, recurringConfig, specialDates, duration, slots, accountId } = req.body;
+    const { name, description, type, recurringConfig, specialDates, duration, slots, accountId, requiresCapacity } = req.body;
 
-    const uniqueLink = generateUniqueLink(name);
+    const uniqueLink = generateUniqueLink();
 
     const agendaData = {
       accountId,
@@ -21,6 +21,7 @@ const createAgenda = async (req, res) => {
       slots,
       uniqueLink,
       type: type || "recurring",
+      requiresCapacity,
     };
 
     if (type === "recurring" && recurringConfig) {
@@ -85,10 +86,11 @@ const createAppointment = async (req, res) => {
       clientPhone,
       notes,
       numberOfPeople: agenda.requiresCapacity ? numberOfPeople : 1,
+      status: "pending",
     });
 
     // Enviar correos de notificación
-    await sendStatusChangeEmails(appointment, "created");
+    await sendAppointmentRequestEmails(appointment);
 
     res.status(201).json(appointment);
   } catch (error) {
@@ -374,6 +376,104 @@ const disableAgenda = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+const confirmAppointmentByToken = async (req, res) => {
+  try {
+    console.log(req.body);
+    const { token } = req.params;
+    const { action } = req.body; // 'confirm' o 'cancel'
+
+    const appointment = await Appointment.findOne({
+      confirmationToken: token,
+      confirmationTokenExpires: { $gt: new Date() },
+    }).populate("agendaId");
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Token inválido o expirado",
+      });
+    }
+
+    // Actualizar el estado de la cita
+    appointment.status = action === "confirm" ? "confirmed" : "cancelled";
+    appointment.confirmationToken = undefined;
+    appointment.confirmationTokenExpires = undefined;
+
+    if (action === "cancel") {
+      appointment.cancellationReason = "Cancelado por el cliente";
+    }
+
+    await appointment.save();
+
+    // Enviar correos de notificación
+    await sendStatusChangeEmails(appointment, appointment.status);
+
+    res.json({
+      message: `Cita ${action === "confirm" ? "confirmada" : "cancelada"} correctamente`,
+      appointment,
+    });
+  } catch (error) {
+    console.error("Error en la confirmación de la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const cancelAppointmentByToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const appointment = await Appointment.findOne({
+      cancellationToken: token,
+      status: "confirmed",
+    }).populate("agendaId");
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Token inválido o cita no encontrada",
+      });
+    }
+
+    // Verificar si la cita puede ser cancelada (24 horas antes)
+    if (!appointment.isCancellable()) {
+      return res.status(400).json({
+        message: "No es posible cancelar la cita con menos de 24 horas de anticipación",
+      });
+    }
+
+    // Actualizar el estado de la cita
+    appointment.status = "cancelled";
+    appointment.cancellationReason = "Cancelado por el cliente";
+    await appointment.save();
+
+    // Enviar correos de notificación
+    await sendStatusChangeEmails(appointment, "cancelled");
+
+    res.json({
+      message: "Cita cancelada correctamente",
+      appointment,
+    });
+  } catch (error) {
+    console.error("Error en la cancelación de la cita:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getPendingAppointmentsCount = async (req, res) => {
+  try {
+    const { email } = req.query;
+    const pendingAppointments = await Appointment.countDocuments({
+      clientEmail: email,
+      status: "pending",
+      startTime: { $gte: new Date() },
+    });
+
+    console.log("pendingAppointments", pendingAppointments);
+    res.json({ count: pendingAppointments });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createAgenda,
   getAvailableSlots,
@@ -387,4 +487,7 @@ module.exports = {
   confirmAppointment,
   rejectAppointment,
   disableAgenda,
+  confirmAppointmentByToken,
+  cancelAppointmentByToken,
+  getPendingAppointmentsCount,
 };

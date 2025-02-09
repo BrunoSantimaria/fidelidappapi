@@ -3,20 +3,14 @@
  * @param name Nombre de la agenda
  * @returns string Link único
  */
-const generateUniqueLink = (name) => {
-  // Limpia el nombre: convierte a minúsculas y reemplaza espacios por guiones
-  const cleanName = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-zA-Z0-9\s]/g, "") // Elimina caracteres especiales
-    .replace(/\s+/g, "-"); // Reemplaza espacios por guiones
+const generateUniqueLink = () => {
+  // Genera un identificador aleatorio de 7 caracteres
+  const randomStr = Math.random().toString(36).substring(2, 9); // 7 caracteres aleatorios
 
-  // Genera componentes aleatorios
-  const timestamp = Date.now().toString(36); // Convierte timestamp a base36
-  const randomStr = Math.random().toString(36).substring(2, 8); // 6 caracteres aleatorios
+  // Convierte el primer carácter a mayúscula para cumplir con el ejemplo
+  const shortName = randomStr.charAt(0).toUpperCase() + randomStr.slice(1);
 
-  // Combina los componentes para crear el link único
-  return `${cleanName}-${timestamp}-${randomStr}`;
+  return shortName;
 };
 
 /**

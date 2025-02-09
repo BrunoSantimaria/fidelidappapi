@@ -59,6 +59,28 @@ const menuItemSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  stock: {
+    type: Number,
+    default: -1,
+  },
+  discount: {
+    type: {
+      type: String,
+      enum: ["percentage", "fixed"],
+      default: "percentage",
+    },
+    value: {
+      type: Number,
+      default: 0,
+    },
+    active: {
+      type: Boolean,
+      default: false,
+    },
+    endDate: {
+      type: Date,
+    },
+  },
 });
 
 // Schema for menu categories
@@ -70,11 +92,34 @@ const menuCategorySchema = new mongoose.Schema({
   icon: {
     type: String,
     default: "",
+    validate: {
+      validator: function (v) {
+        return v.includes(":") || /\p{Emoji}/u.test(v);
+      },
+    },
   },
   description: {
     type: String,
   },
   items: [menuItemSchema],
+  discount: {
+    type: {
+      type: String,
+      enum: ["percentage", "fixed"],
+      default: "percentage",
+    },
+    value: {
+      type: Number,
+      default: 0,
+    },
+    active: {
+      type: Boolean,
+      default: false,
+    },
+    endDate: {
+      type: Date,
+    },
+  },
 });
 
 // Schema para las valoraciones de meseros
@@ -219,7 +264,7 @@ const landingSchema = new mongoose.Schema(
       },
       title: {
         type: String,
-        default: "Ver nuestra carta",
+        default: "Ver nuestros productos",
       },
     },
     menu: {

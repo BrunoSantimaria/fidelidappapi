@@ -1559,7 +1559,7 @@ exports.getDashboardMetrics = async (req, res) => {
     const totalEmailOpens = globalCampaignMetricsData.totalOpens || 0;
     const totalEmailClicks = globalCampaignMetricsData.totalClicks || 0;
     const totalCampaigns = globalCampaignMetricsData.totalCampaigns || 0;
-
+    console.log(campaignDetails);
     // Format campaign details
     const formattedCampaignDetails = campaignDetails.map((campaign) => ({
       name: campaign.name,
@@ -1567,6 +1567,7 @@ exports.getDashboardMetrics = async (req, res) => {
       totalSent: campaign.totalSent,
       totalOpens: campaign.totalOpens,
       totalClicks: campaign.totalClicks,
+      date: campaign.startDate,
     }));
 
     //Get contact data

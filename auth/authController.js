@@ -61,8 +61,9 @@ exports.signIn = async (req, res) => {
 
     const token = generateToken(user);
     log.logAction(email, "login", "Login exitoso");
+    const account = await Account.findOne({ owner: user._id });
 
-    res.status(200).json({ token, user: { email: user.email, name: user.name } });
+    res.status(200).json({ token, user: { email: user.email, name: user.name, slug: account.slug } });
   } catch (error) {
     console.error("Error en signin:", error);
     res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
@@ -98,15 +99,16 @@ exports.signUp = async (req, res) => {
       log.logAction(email, "signup", "Usuario y cuenta creados");
 
       return res.status(201).json({
-        user: { email: user.email, name: user.name },
+        user: { email: user.email, name: user.name, slug: account.slug },
         account,
       });
     }
 
     // Si existe una cuenta, solo agregar el usuario
     log.logAction(email, "signup", "Usuario creado y agregado a cuenta existente");
+    const account = await Account.findOne({ userEmails: email });
     return res.status(201).json({
-      user: { email: user.email, name: user.name },
+      user: { email: user.email, name: user.name, slug: account.slug },
     });
   } catch (error) {
     console.error("Error en signup:", error);
@@ -135,16 +137,17 @@ exports.googleSignIn = async (req, res) => {
       await addUserToFidelidappAccount(email, name);
     }
 
-    const account = await Account.findOne({ userEmails: email });
+    const account = await Account.findOne({ owner: user._id });
     if (!account) {
       await createAccount(user._id, email, name);
       log.logAction(email, "google_signup", "Usuario y cuenta creados via Google");
     }
 
     const token = generateToken(user);
+
     res.status(200).json({
       token,
-      user: { email: user.email, name: user.name },
+      user: { email: user.email, name: user.name, slug: account.slug },
     });
   } catch (error) {
     console.error("Error en Google signin:", error);
@@ -153,7 +156,7 @@ exports.googleSignIn = async (req, res) => {
 };
 
 const addUserToFidelidappAccount = async (email, name) => {
-  const fappid = process.env.FAPPID 
+  const fappid = process.env.FAPPID;
   if (!fappid) {
     console.error("Fidelidapp account ID not found in environment variables");
     return;
@@ -179,9 +182,7 @@ const addUserToFidelidappAccount = async (email, name) => {
       console.log("New Fidelidapp client created:", client);
     } else {
       // Add the Fidelidapp account to the existing client if not already added
-      const accountExists = client.addedAccounts.some(
-        (account) => account.accountId === fappid
-      );
+      const accountExists = client.addedAccounts.some((account) => account.accountId === fappid);
 
       if (!accountExists) {
         client.addedAccounts.push({ accountId: fappid });
@@ -207,9 +208,6 @@ const addUserToFidelidappAccount = async (email, name) => {
     throw error; // Re-throw error for higher-level handling
   }
 };
-
-
-
 
 exports.current = async (req, res) => {
   try {
