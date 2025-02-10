@@ -174,9 +174,9 @@ exports.googleSignIn = async (req, res) => {
       await addUserToFidelidappAccount(email, name);
     }
 
-    const account = await Account.findOne({ owner: user._id });
+    let account = await Account.findOne({ owner: user._id });
     if (!account) {
-      await createAccount(user._id, email, name);
+      account = await createAccount(user._id, email, name);
       log.logAction(email, "google_signup", "Usuario y cuenta creados via Google");
     }
 
@@ -184,7 +184,11 @@ exports.googleSignIn = async (req, res) => {
 
     res.status(200).json({
       token,
-      user: { email: user.email, name: user.name, slug: account.slug },
+      user: {
+        email: user.email,
+        name: user.name,
+        slug: account?.slug || null,
+      },
     });
   } catch (error) {
     console.error("Error en Google signin:", error);
