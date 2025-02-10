@@ -75,7 +75,14 @@ exports.signIn = async (req, res) => {
     log.logAction(email, "login", "Login exitoso");
     const account = await Account.findOne({ owner: user._id });
 
-    res.status(200).json({ token, user: { email: user.email, name: user.name, slug: account.slug } });
+    res.status(200).json({
+      token,
+      user: {
+        email: user.email,
+        name: user.name,
+        slug: account?.slug || null,
+      },
+    });
   } catch (error) {
     console.error("Error en signin:", error);
     res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
