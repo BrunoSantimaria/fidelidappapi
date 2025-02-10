@@ -34,9 +34,19 @@ const generateQr = async () => {
 
 const sendQrCode = async (account) => {
   try {
-    await sendRegisterEmail(account);
+    // Verificar que account.userEmails existe y tiene al menos un email
+    if (!account.userEmails || !account.userEmails[0]) {
+      console.error("No hay email de destinatario disponible");
+      return;
+    }
+
+    const email = account.userEmails[0]; // Tomar el primer email de la lista
+    const name = account.name || "Usuario"; // Usar un nombre por defecto si no existe
+
+    await sendRegisterEmail(name, email);
   } catch (error) {
-    console.error("Error sending welcome email:", error);
+    console.error("Error al enviar email:", error);
+    // No lanzar el error para que no interrumpa el flujo principal
   }
 };
 

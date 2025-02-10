@@ -4,10 +4,10 @@ const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
 const { format } = require("date-fns");
 const { es } = require("date-fns/locale");
-
+const fromEmail = process.env.FROM_EMAIL;
 // Configurar SendGrid con tu API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-const emailSender = "santimariabruno@gmail.com";
+const emailSender = fromEmail;
 const formatDateTime = (date) => {
   return format(new Date(date), "PPpp", { locale: es });
 };

@@ -1,5 +1,6 @@
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const fromEmail = process.env.FROM_EMAIL;
 const sendAgendaEmail = async ({ to, subject, header, text, attachments }) => {
   const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // Replace with your actual logo URL
   const formattedText = text.replace(/(?:\r\n|\r|\n)/g, "<br>");
@@ -91,7 +92,7 @@ const sendAgendaEmail = async ({ to, subject, header, text, attachments }) => {
   try {
     const msg = {
       to,
-      from: "contacto@fidelidapp.cl",
+      from: fromEmail,
       subject,
       html,
       attachments,
@@ -175,7 +176,7 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
   try {
     const msg = {
       to,
-      from: "contacto@fidelidapp.cl",
+      from: fromEmail,
       subject,
       html,
       attachments: attachments || [],
@@ -189,10 +190,18 @@ const sendMarketingEmail = async ({ to, subject, header, text, attachments }) =>
   }
 };
 const sendRegisterEmail = async (name, email) => {
-  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"; // URL del logo
+  // Verificar que los parámetros no sean undefined o null
+  if (!email) {
+    throw new Error("Email es requerido para enviar el correo de registro");
+  }
+
+  if (!name) {
+    name = "Usuario"; // Valor por defecto si no se proporciona nombre
+  }
+
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
   const subject = "¡Bienvenido a la familia Fidelidapp! 🎉";
   const header = "¡Tu negocio está a punto de crecer!";
-  const to = email; // Dirección de email del destinatario
 
   // Contenido del email con el logo incluido
   const html = `
@@ -255,17 +264,21 @@ const sendRegisterEmail = async (name, email) => {
 
   try {
     const msg = {
-      to,
-      from: "contacto@fidelidapp.cl", // Dirección desde donde se envía
+      to: email,
+      from: fromEmail,
       subject,
       html,
     };
 
-    // Enviar email usando SendGrid
+    // Verificación adicional antes de enviar
+    if (!msg.to) {
+      throw new Error("Destinatario (to) es requerido");
+    }
+
     await sgMail.send(msg);
-    console.log("Email enviado correctamente.");
+    console.log("Email enviado correctamente a:", email);
   } catch (error) {
-    console.error("Error al enviar email:", error);
+    console.error("Error al enviar email de registro:", error);
     throw error;
   }
 };
@@ -336,7 +349,7 @@ const sendReminderEmail = async (account) => {
   try {
     const msg = {
       to,
-      from: "contacto@fidelidapp.cl", // Dirección desde donde se envía
+      from: fromEmail, // Dirección desde donde se envía
       subject,
       html,
     };
@@ -357,11 +370,12 @@ const sendAutomatedEmail = async ({ to, subject, html }) => {
   try {
     const msg = {
       to,
-      from: "contacto@fidelidapp.cl",
+      from: fromEmail,
       subject,
-      html
+      html,
     };
     await sgMail.send(msg);
+
     console.log("Email sent successfully.");
   } catch (error) {
     console.error("Error sending email:", error);
@@ -369,4 +383,63 @@ const sendAutomatedEmail = async ({ to, subject, html }) => {
   }
 };
 
-module.exports = { sendMarketingEmail, sendAgendaEmail, sendRegisterEmail, sendReminderEmail, sendAutomatedEmail };
+const sendVerificationEmail = async (email, verificationToken) => {
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+  const subject = "Verifica tu correo electrónico - FidelidApp";
+  const verificationLink = `${process.env.FRONTEND_URL}/auth/verify-email/${verificationToken}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Verificación de Correo Electrónico</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9f9f9;">
+      <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${logoUrl}" alt="FidelidApp Logo" style="height: 80px; display: block; margin: auto;">
+        </div>
+        
+        <h1 style="color: #5b7898; text-align: center;">Verifica tu correo electrónico</h1>
+        
+        <p style="margin: 20px 0;">¡Gracias por registrarte en FidelidApp! Para completar tu registro y comenzar a usar nuestra plataforma, por favor verifica tu dirección de correo electrónico haciendo clic en el siguiente botón:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationLink}" style="display: inline-block; background-color: #5b7898; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Verificar correo electrónico</a>
+        </div>
+        
+        <p style="margin: 20px 0;">Si el botón no funciona, puedes copiar y pegar el siguiente enlace en tu navegador:</p>
+        <p style="margin: 10px 0; word-break: break-all; color: #5b7898;">${verificationLink}</p>
+        
+        <p style="margin: 20px 0;">Este enlace expirará en 24 horas por razones de seguridad.</p>
+        
+        <p style="margin: 20px 0;">Si no has solicitado esta verificación, puedes ignorar este correo.</p>
+        
+        <div style="text-align: center; font-size: 12px; color: #888; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+          <p>© ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const msg = {
+      to: email,
+      from: fromEmail,
+      subject,
+      html,
+    };
+
+    await sgMail.send(msg);
+    console.log("Email de verificación enviado correctamente.");
+  } catch (error) {
+    console.error("Error al enviar email de verificación:", error);
+    throw error;
+  }
+};
+
+module.exports = { sendMarketingEmail, sendAgendaEmail, sendRegisterEmail, sendReminderEmail, sendAutomatedEmail, sendVerificationEmail };
