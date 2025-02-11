@@ -374,3 +374,4 @@ exports.verifyEmail = async (req, res) => {
     });
   }
 };
+module.exports = { addUserToFidelidappAccount };

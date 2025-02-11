@@ -1,4 +1,6 @@
 const sgMail = require("@sendgrid/mail");
+const { logAction } = require("../logger/logger");
+const { addUserToFidelidappAccount } = require("../auth/authController");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const fromEmail = process.env.FROM_EMAIL;
 const sendAgendaEmail = async ({ to, subject, header, text, attachments }) => {
@@ -202,6 +204,7 @@ const sendRegisterEmail = async (name, email) => {
   const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
   const subject = "¡Bienvenido a la familia Fidelidapp! 🎉";
   const header = "¡Tu negocio está a punto de crecer!";
+  const frontendUrl = process.env.FRONTEND_URL;
 
   // Contenido del email con el logo incluido
   const html = `
@@ -276,6 +279,11 @@ const sendRegisterEmail = async (name, email) => {
     }
 
     await sgMail.send(msg);
+    if (frontendUrl !== "http://localhost:5173") {
+      logAction(email, "user_added", "Usuario añadido a Fidelidapp");
+
+      await addUserToFidelidappAccount(email, name);
+    }
     console.log("Email enviado correctamente a:", email);
   } catch (error) {
     console.error("Error al enviar email de registro:", error);
@@ -391,6 +399,7 @@ const sendVerificationEmail = async (email, verificationToken) => {
   const html = `
     <!DOCTYPE html>
     <html lang="es">
+
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
