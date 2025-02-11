@@ -66,7 +66,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173"];
+    const allowedOrigins = ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173", "http://localhost:4321", "https://alvarovillena.cl/"];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
