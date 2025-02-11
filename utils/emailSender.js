@@ -209,7 +209,6 @@ const sendRegisterEmail = async (name, email) => {
   const subject = "¡Bienvenido a la familia Fidelidapp! 🎉";
   const header = "¡Tu negocio está a punto de crecer!";
   const frontendUrl = process.env.FRONTEND_URL;
-  const frontendUrl = process.env.FRONTEND_URL;
 
   // Contenido del email con el logo incluido
   const html = `
