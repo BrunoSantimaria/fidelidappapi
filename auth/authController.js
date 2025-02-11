@@ -8,6 +8,7 @@ const Client = require("../promotions/client.model.js");
 const log = require("../logger/logger.js");
 const { generateQr, sendQrCode } = require("../utils/generateQrKeys.js");
 const { sendRegisterEmail, sendVerificationEmail } = require("../utils/emailSender.js");
+
 const axios = require("axios");
 const crypto = require("crypto");
 
