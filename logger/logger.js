@@ -1,6 +1,8 @@
 // utils/logger.js
 const Log = require("./Logger.model");
 const Slack = require("@slack/bolt");
+const dotenv = require("dotenv");
+dotenv.config();
 
 const app = new Slack.App({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -30,5 +32,4 @@ const logAction = async (email, action, details, SlackChannel) => {
   }
 };
 
-
-module.exports = { logAction,  };
+module.exports = { logAction };

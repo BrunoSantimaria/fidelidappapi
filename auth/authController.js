@@ -7,9 +7,9 @@ const Plan = require("../plans/Plans.model.js");
 const Client = require("../promotions/client.model.js");
 const log = require("../logger/logger.js");
 const { generateQr, sendQrCode } = require("../utils/generateQrKeys.js");
-const { sendRegisterEmail, sendVerificationEmail } = require("../utils/emailSender.js");
 const axios = require("axios");
 const crypto = require("crypto");
+const emailSender = require("../utils/emailSender.js");
 
 // Constantes para mensajes de error
 const ERROR_MESSAGES = {
@@ -47,6 +47,9 @@ const createAccount = async (userId, email, name) => {
   await sendQrCode(account);
   return account;
 };
+
+console.log("Contenido de emailSender:", emailSender);
+console.log("Tipo de sendVerificationEmail:", typeof emailSender.sendVerificationEmail);
 
 exports.signIn = async (req, res) => {
   try {
@@ -147,7 +150,7 @@ exports.signUp = async (req, res) => {
     await user.save();
 
     // Enviar email de verificación
-    await sendVerificationEmail(email, verificationToken);
+    await emailSender.sendVerificationEmail(email, verificationToken);
 
     res.status(201).json({
       success: true,
@@ -203,6 +206,7 @@ exports.googleSignIn = async (req, res) => {
   }
 };
 
+// Asegúrate de que esta función esté definida antes de verifyEmail
 const addUserToFidelidappAccount = async (email, name) => {
   const fappid = process.env.FAPPID;
   if (!fappid) {
@@ -246,14 +250,14 @@ const addUserToFidelidappAccount = async (email, name) => {
       },
     });
     //Send register email
-    await sendRegisterEmail(client.name, client.email);
+    await emailSender.sendRegisterEmail(client.name, client.email);
 
     console.log("User successfully added to Fidelidapp:", normalizedEmail);
 
     log.logAction(normalizedEmail, "user_added", "Usuario agregado a Fidelidapp", "#leads");
   } catch (error) {
     console.error("Error adding user to Fidelidapp account:", error);
-    throw error; // Re-throw error for higher-level handling
+    throw error;
   }
 };
 
@@ -351,13 +355,19 @@ exports.verifyEmail = async (req, res) => {
       log.logAction(user.email, "email_verified", "Email verificado");
     }
 
-    // Enviar email de bienvenida siempre después de la verificación
+    // Ahora la función addUserToFidelidappAccount estará disponible aquí
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (frontendUrl !== "http://localhost:5173") {
+      log.logAction(user.email, "user_added", "Usuario añadido a Fidelidapp");
+      await addUserToFidelidappAccount(user.email, user.name);
+    }
+
+    // Enviar email de bienvenida
     try {
-      await sendRegisterEmail(user.name, user.email);
+      await emailSender.sendRegisterEmail(user.name, user.email);
       log.logAction(user.email, "welcome_email_sent", "Email de bienvenida enviado");
     } catch (emailError) {
       console.error("Error al enviar email de bienvenida:", emailError);
-      // Registrar el error pero continuar con el flujo
       log.logAction(user.email, "welcome_email_error", "Error al enviar email de bienvenida");
     }
 
