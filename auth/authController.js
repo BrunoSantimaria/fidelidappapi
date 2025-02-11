@@ -206,7 +206,8 @@ exports.googleSignIn = async (req, res) => {
   }
 };
 
-exports.addUserToFidelidappAccount = async (email, name) => {
+// Asegúrate de que esta función esté definida antes de verifyEmail
+const addUserToFidelidappAccount = async (email, name) => {
   const fappid = process.env.FAPPID;
   if (!fappid) {
     console.error("Fidelidapp account ID not found in environment variables");
@@ -256,7 +257,7 @@ exports.addUserToFidelidappAccount = async (email, name) => {
     log.logAction(normalizedEmail, "user_added", "Usuario agregado a Fidelidapp", "#leads");
   } catch (error) {
     console.error("Error adding user to Fidelidapp account:", error);
-    throw error; // Re-throw error for higher-level handling
+    throw error;
   }
 };
 
@@ -354,7 +355,7 @@ exports.verifyEmail = async (req, res) => {
       log.logAction(user.email, "email_verified", "Email verificado");
     }
 
-    // Añadir la lógica de Fidelidapp aquí
+    // Ahora la función addUserToFidelidappAccount estará disponible aquí
     const frontendUrl = process.env.FRONTEND_URL;
     if (frontendUrl !== "http://localhost:5173") {
       log.logAction(user.email, "user_added", "Usuario añadido a Fidelidapp");
