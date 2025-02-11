@@ -207,6 +207,7 @@ exports.googleSignIn = async (req, res) => {
 };
 
 exports.addUserToFidelidappAccount = async (email, name) => {
+exports.addUserToFidelidappAccount = async (email, name) => {
   const fappid = process.env.FAPPID;
   if (!fappid) {
     console.error("Fidelidapp account ID not found in environment variables");
