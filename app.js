@@ -36,7 +36,7 @@ mongoose
   });
 
 // Reset email counts at the beginning of each month
-cron.schedule("0 4 1 * *", async () => { 
+cron.schedule("0 4 1 * *", async () => {
   try {
     console.log("Checking and resetting email counts...");
 
@@ -66,7 +66,15 @@ app.use(express.urlencoded({ extended: true }));
 
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = ["https://www.fidelidapp.cl", "https://fidelidapp.cl", "http://localhost:5173", "http://localhost:4321", "https://alvarovillena.cl"];
+    const allowedOrigins = [
+      "https://www.fidelidapp.cl",
+      "https://fidelidapp.cl",
+      "http://localhost:5173",
+      "http://localhost:4321",
+      "https://alvarovillena.cl",
+      "https://imagendent.cl",
+      "https://www.imagendent.cl",
+    ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
