@@ -337,28 +337,7 @@ router.post("/register", async (req, res) => {
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     await sendRegisterEmail(email, account);
-
-    if (accountId === "67b628618c2a5a743bc72d61") {
-      await logAction(
-        email,
-        `Contacto Web ${account.name}`,
-        `${formatName(name)} completo un formulario de contacto en ${formatName(account.name)}`,
-        "leads" // Aseguramos que el canal se pasa correctamente
-      );
-    } else {
-      try {
-        await logAction(
-          email,
-          "Registro y Login",
-          `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`,
-          process.env.SLACK_CHANNEL // Especificamos explícitamente el canal por defecto
-        );
-      } catch (slackError) {
-        console.error("Error al enviar notificación a Slack:", slackError);
-        // Continuamos con el flujo normal aunque falle Slack
-      }
-    }
-
+    await logAction(email, "Registro y Login", `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`);
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
