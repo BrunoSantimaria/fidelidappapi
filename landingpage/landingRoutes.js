@@ -338,7 +338,7 @@ router.post("/register", async (req, res) => {
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     await sendRegisterEmail(email, account);
 
-    if (accountId === "67b628618c2a5a743bc72d61") {
+    if (accountId == "67b628618c2a5a743bc72d61") {
       await logAction(email, `Contacto Web ${account.name}`, `${formatName(name)} completo un formulario de contacto en ${formatName(account.name)}`, "leads");
     } else {
       await logAction(email, "Registro y Login", `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`);
