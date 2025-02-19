@@ -74,6 +74,8 @@ const corsOptions = {
       "https://alvarovillena.cl",
       "https://imagendent.cl",
       "https://www.imagendent.cl",
+      "https://www.fidelizarte.cl",
+      "https://fidelizarte.cl",
     ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);

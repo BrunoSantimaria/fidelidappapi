@@ -337,7 +337,12 @@ router.post("/register", async (req, res) => {
     // Crear un token JWT para el cliente
     const token = jwt.sign({ clientId: updatedClient._id }, process.env.JWT_SECRET, { expiresIn: "3000h" });
     await sendRegisterEmail(email, account);
-    await logAction(email, "Registro y Login", `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`);
+    if (accountId === "67b628618c2a5a743bc72d61") {
+      await logAction(email, "Contacto Web", `${formatName(name)} completo un formulario de contacto en ${formatName(account.name)}, leads`);
+    } else {
+      await logAction(email, "Registro y Login", `${formatName(name)} se registró y tuvo login exitoso en ${formatName(account.name)}`);
+    }
+
     return res.status(201).json({
       message: "Cliente registrado con éxito",
       token,
@@ -685,8 +690,6 @@ router.post("/redeem-promotion-reward", async (req, res) => {
   }
 });
 
-
-
 // QR Point Scanning Route
 router.post("/scan-qr-points", async (req, res) => {
   try {
@@ -786,7 +789,6 @@ router.post("/add-activity", async (req, res) => {
     res.status(500).json({ error: "Error al agregar la actividad" });
   }
 });
-
 
 const formatName = (name) => {
   return name
