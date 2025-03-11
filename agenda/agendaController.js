@@ -6,6 +6,8 @@ const { generateUniqueLink } = require("../utils/generateUniqueLink");
 const mongoose = require("mongoose");
 const { logAction } = require("../logger/logger");
 const { sendStatusChangeEmails, sendAppointmentRequestEmails } = require("./agendaMailing");
+const Client = require("../promotions/client.model");
+const Account = require("../accounts/Account.model.js");
 
 const createAgenda = async (req, res) => {
   try {
@@ -41,6 +43,7 @@ const createAppointment = async (req, res) => {
   try {
     const { agendaId, startTime, endTime, clientName, clientEmail, clientPhone, notes, numberOfPeople } = req.body;
 
+
     // Verificar si el agendaId es un ObjectId válido
     const isValidObjectId = mongoose.Types.ObjectId.isValid(agendaId);
 
@@ -55,6 +58,10 @@ const createAppointment = async (req, res) => {
     if (!agenda) {
       return res.status(404).json({ message: "Agenda no encontrada" });
     }
+
+    // Tomar el accountId de la agenda
+    const accountId = agenda.accountId;
+    addClientToAccount(accountId, clientName, clientEmail, clientPhone);
 
     // Verificar si el horario ya está ocupado y la capacidad disponible
     const existingAppointments = await Appointment.find({
@@ -98,6 +105,70 @@ const createAppointment = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+const addClientToAccount = async (accountId, name, email, phoneNumber) => {
+  try {
+    if (!email) {
+      throw new Error("El email es obligatorio para identificar al cliente.");
+    }
+
+    // Buscar si el cliente ya existe
+    let client = await Client.findOne({ email });
+
+    if (!client) {
+      // Si el cliente no existe, crearlo
+      client = new Client({
+        name,
+        email,
+        phoneNumber,
+        addedAccounts: [{ accountId }],
+      });
+
+      await client.save();
+      console.log("Cliente creado y agregado desde la agenda a la cuenta:", client);
+    } else {
+      // Si el cliente ya existe, verificar si está en la cuenta
+      const isAlreadyInAccount = client.addedAccounts.some(
+        (acc) => acc.accountId.toString() === accountId.toString()
+      );
+
+      if (!isAlreadyInAccount) {
+        client.addedAccounts.push({ accountId });
+        await client.save();
+        console.log("Cliente existente agregado a la cuenta.");
+      } else {
+        console.log("El cliente ya está en la cuenta.");
+      }
+    }
+
+    // Agregar cliente a la cuenta en el modelo Account
+    const account = await Account.findById(accountId);
+    if (!account) {
+      throw new Error("La cuenta no existe.");
+    }
+
+    const isClientInAccount = account.clients.some(
+      (c) => c.email === email
+    );
+
+    if (!isClientInAccount) {
+      account.clients.push({
+        id: client._id,
+        name: client.name,
+        email: client.email,
+        phoneNumber: client.phoneNumber,
+      });
+
+      await account.save();
+      console.log("Cliente agregado en la cuenta correctamente.");
+    }
+
+  } catch (error) {
+    console.error("Error al agregar el cliente a la cuenta:", error);
+  }
+};
+
+
 const getAccountAppointments = async (req, res) => {
   try {
     const { accountId } = req.params;
