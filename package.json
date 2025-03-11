@@ -33,6 +33,7 @@
     "google-auth-library": "^9.10.0",
     "ioredis": "^5.4.2",
     "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.5.0",
     "mercadopago": "^2.0.15",
     "moment": "^2.30.1",
     "moment-timezone": "^0.5.47",

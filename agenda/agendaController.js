@@ -42,6 +42,7 @@ const createAgenda = async (req, res) => {
 const createAppointment = async (req, res) => {
   try {
     const { agendaId, startTime, endTime, clientName, clientEmail, clientPhone, notes, numberOfPeople } = req.body;
+    console.log("Creando cita:", req.body);
 
 
     // Verificar si el agendaId es un ObjectId válido

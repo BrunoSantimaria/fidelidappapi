@@ -2,14 +2,20 @@ const sgMail = require("@sendgrid/mail");
 const Account = require("../accounts/Account.model");
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
-const { format } = require("date-fns");
-const { es } = require("date-fns/locale");
 const fromEmail = process.env.FROM_EMAIL;
 // Configurar SendGrid con tu API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const emailSender = fromEmail;
+
+const { DateTime } = require("luxon");
+
 const formatDateTime = (date) => {
-  return format(new Date(date), "PPpp", { locale: es });
+  // Asegurar que 'date' sea un objeto de tipo Date
+  const dateObject = date instanceof Date ? date : new Date(date);
+
+  return DateTime.fromJSDate(dateObject) // Convertimos a Luxon desde un objeto Date
+    .setZone("America/Santiago") // Ajustamos la zona horaria
+    .toFormat("dd LLL yyyy, HH:mm"); // Formato de salida (día, mes, año, hora y minutos)
 };
 
 const generateCalendarLinks = (appointment, agenda) => {
@@ -46,10 +52,10 @@ const generateCalendarLinks = (appointment, agenda) => {
   return `
     <div style="margin-top: 20px; text-align: center;">
       <p style="margin-bottom: 10px;"><strong>Agregar a calendario:</strong></p>
-      <a href="${googleUrl}" target="_blank" style="display: inline-block; margin: 5px; padding: 8px 15px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 5px;">
+      <a href="${googleUrl}" target="_blank" style="display: inline-block; margin: 5px; padding: 8px 15px; background-color: #5c7898; color: white; text-decoration: none; border-radius: 5px;">
         Google Calendar
       </a>
-      <a href="${outlookUrl}" target="_blank" style="display: inline-block; margin: 5px; padding: 8px 15px; background-color: #0078d4; color: white; text-decoration: none; border-radius: 5px;">
+      <a href="${outlookUrl}" target="_blank" style="display: inline-block; margin: 5px; padding: 8px 15px; background-color: #5c7898; color: white; text-decoration: none; border-radius: 5px;">
         Outlook Calendar
       </a>
     </div>
@@ -58,8 +64,8 @@ const generateCalendarLinks = (appointment, agenda) => {
 
 const generateEmailTemplate = (content) => `
   <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #6B73FF 0%, #000DFF 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-      <h1 style="color: white; margin: 0; text-align: center;">Fideliapp</h1>
+    <div style="background: linear-gradient(135deg, #6B73FF 0%, #5c7898 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+      <h1 style="color: white; margin: 0; text-align: center;">Fidelidapp</h1>
     </div>
     <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       ${content}
