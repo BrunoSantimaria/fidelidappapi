@@ -1702,7 +1702,6 @@ const getGlobalMetrics = async (accountId, accountPromotionIds) => {
     },
     {
       $match: {
-        "addedpromotions.promotion": { $in: accountPromotionIds }, // Filter by relevant promotions
         "addedAccounts.accountId": accountId, // Ensure the account matches
       },
     },
