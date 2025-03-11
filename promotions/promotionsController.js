@@ -1143,9 +1143,8 @@ exports.redeemPromotionPoints = async (req, res) => {
               <p>¡Nos alegra contar con clientes tan leales como tú!</p>
             </div>
             <div class="footer">
-              <img src="${
-                account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
-              }" alt="FidelidApp Logo" height="100">
+              <img src="${account.logo || "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png"
+        }" alt="FidelidApp Logo" height="100">
               <p>&copy; ${new Date().getFullYear()} FidelidApp. Todos los derechos reservados.</p>
             </div>
           </div>
@@ -2125,9 +2124,13 @@ exports.sendWeeklyReport = async () => {
         recipients.push("contacto@fidelidapp.cl");
       }
 
-      // Enviar email
-      await sendReportEmail(recipients, `Reporte semanal de Fidelidapp para ${account.name ? account.name : "tu negocio"}`, emailContent);
-      console.log("Email enviado a: ", recipients);
+      // Enviar email solo si la cuenta tiene mas de 10 clientes
+      if (totalClients > 10) {
+        await sendReportEmail(recipients, `Reporte semanal de Fidelidapp para ${account.name ? account.name : "tu negocio"}`, emailContent);
+        console.log("Email enviado a: ", recipients);
+      } else {
+        console.log("No se envió el email porque la cuenta tiene menos de 10 clientes: ",  account.name);
+      }
     }
   } catch (error) {
     console.error("Error al enviar reportes semanales:", error);
