@@ -221,6 +221,67 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
     res.status(500).json({ error: "Error al obtener los datos de la FideliCard" });
   }
 });
+
+const addPromotionsToClient = async (client, accountId, slug) => {
+  let account;
+
+  // Buscar la cuenta según accountId o slug
+  if (accountId) {
+    account = await Account.findById(accountId).populate("promotions");
+  } else if (slug) {
+    account = await Account.findOne({ slug: slug }).populate("promotions");
+  }
+
+  // Validar si la cuenta fue encontrada
+  if (!account) {
+    throw new Error("Cuenta no encontrada");
+  }
+
+  const { email } = client;
+
+  if (!email) {
+    throw new Error("El cliente no tiene un email válido.");
+  }
+
+  // Buscar cliente por email
+  const clientNew = await Client.findOne({ email });
+  console.log("🚀 ~ addPromotionsToClient ~ clientNew encontrado:", clientNew);
+
+  if (!clientNew) {
+    throw new Error(`Cliente con email ${email} no encontrado.`);
+  }
+
+  // Asegurarse de que addedpromotions exista
+  if (!clientNew.addedpromotions) {
+    clientNew.addedpromotions = [];
+  }
+
+  // Agregar promociones nuevas
+  account.promotions.forEach((promotion) => {
+    const existingPromotion = clientNew.addedpromotions.find((p) => p.promotion.toString() === promotion._id.toString());
+
+    if (!existingPromotion) {
+      clientNew.addedpromotions.push({
+        promotion: promotion._id,
+        addedDate: getChileanDateTime(),
+        endDate: promotion.endDate,
+        actualVisits: 0,
+        pointsEarned: 0,
+        status: "Active",
+        redeemCount: 0,
+        systemType: promotion.systemType || "visits",
+        visitDates: [],
+      });
+    }
+  });
+
+  // Guardar cliente actualizado
+  await clientNew.save();
+  console.log("✅ Cliente actualizado exitosamente con promociones:", clientNew.addedpromotions);
+
+  return clientNew;
+};
+
 // Registration Route
 router.post("/register", async (req, res) => {
   try {
@@ -751,3 +812,4 @@ const formatName = (name) => {
 };
 
 module.exports = router;
+
