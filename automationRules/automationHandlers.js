@@ -2,6 +2,8 @@ const Client = require("../promotions/client.model");
 const Promotion = require("../promotions/promotions.model");
 const { sendMarketingEmail, sendAutomatedEmail } = require("../utils/emailSender"); // Ejemplo de servicio de correo
 const mongoose = require("mongoose");
+const log = require("../logger/logger.js");
+
 
 // OLD Handler para clientes inactivos
 // async function handleClientInactivity(rule) {
@@ -181,6 +183,7 @@ async function handleclientRegistration(rule) {
             });
 
             console.log("Automated handleClientRegistration Email sent to " + client.email);
+            log.logAction(client.email, "handleclientRegistration", "Enviado Email desde account: " + account.name , "automations");
           } catch (error) {
             console.error("Error sending email to " + client.email + error);
           }
@@ -234,6 +237,7 @@ async function handleRegistrationDate(rule) {
             });
 
             console.log("Automated handleRegistrationDate Email sent to " + client.email);
+            log.logAction(client.email, "handleRegistrationDate", "Enviado Email desde cuenta: " + account.name , "automations");
           } catch (error) {
             console.error("Error sending email to " + client.email + error);
           }
