@@ -144,8 +144,34 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
     const addedPromotionsAfter = client.addedpromotions.length;
     console.log(`✔️ Promociones filtradas -> Antes: ${addedPromotionsBefore}, Después: ${addedPromotionsAfter}`);
 
-    // Calcular puntos ganados
-    console.log("🔍 Calculando puntos ganados...");
+    // Calcular puntos ganados - CORRECCIÓN COMPLETA
+    console.log("🔍 Calculando puntos ganados y gastados...");
+
+    // 1. Sumar puntos ganados de las promociones
+    const pointsFromPromotions = client.addedpromotions
+      .filter((promo) => promo.systemType === "points")
+      .reduce((total, promo) => total + (promo.pointsEarned || 0), 0);
+
+    // 2. Sumar puntos ganados de las actividades de tipo "earned"
+    const pointsEarnedFromActivities = client.activities
+      .filter((activity) => activity.type === "earned" && activity.accountId && activity.accountId.toString() === account._id.toString())
+      .reduce((total, activity) => total + (activity.amount || 0), 0);
+
+    // 3. Sumar puntos gastados de las actividades de tipo "reward_redeemed"
+    const pointsSpentFromActivities = client.activities
+      .filter((activity) => activity.type === "reward_redeemed" && activity.accountId && activity.accountId.toString() === account._id.toString())
+      .reduce((total, activity) => total + (activity.amount || 0), 0);
+
+    // 4. Calcular el balance final de puntos
+    // Usamos el método más preciso: actividades o promociones
+    const pointsFromActivitiesBalance = pointsEarnedFromActivities - pointsSpentFromActivities;
+    const earnedPoints = Math.max(pointsFromPromotions, pointsFromActivitiesBalance);
+
+    console.log("✔️ Puntos ganados -> Desde promociones:", pointsFromPromotions);
+    console.log("✔️ Puntos ganados -> Desde actividades:", pointsEarnedFromActivities);
+    console.log("✔️ Puntos gastados -> Desde actividades:", pointsSpentFromActivities);
+    console.log("✔️ Balance desde actividades:", pointsFromActivitiesBalance);
+    console.log("✔️ Puntos ganados -> Total final:", earnedPoints);
 
     // Filtrar promociones activas de la cuenta
     console.log("🔍 Filtrando promociones activas de la cuenta...");
@@ -155,22 +181,10 @@ router.get("/:slug/fidelicard/:clientId?", async (req, res) => {
     });
     const activePromotionsForOwner = activePromotions.filter((promo) => promo.userId.toString() === account.owner.toString());
 
-    const earnedPoints = client.addedpromotions
-      .filter(
-        (promo) => promo.systemType === "points" // Solo promociones de puntos
-      )
-      .reduce((total, promo) => {
-        // Asegurarse de que `pointsEarned` esté definido, si no, asignar 0
-        const points = promo.pointsEarned || 0;
-        return total + points; // Sumar los puntos ganados
-      }, 0);
-
-    console.log("✔️ Puntos ganados -> Total:", earnedPoints);
-
     // Preparar datos para la FideliCard
     console.log("🔍 Preparando datos para la FideliCard...");
     const activitiesFiltered = client.activities
-      .filter((activity) => activity.accountId.toString() === account._id.toString())
+      .filter((activity) => activity.accountId && activity.accountId.toString() === account._id.toString())
       .sort((a, b) => b.date - a.date)
       .slice(0, 10);
     console.log("✔️ Actividades recientes -> Total:", activitiesFiltered.length);
@@ -798,3 +812,4 @@ const formatName = (name) => {
 };
 
 module.exports = router;
+
