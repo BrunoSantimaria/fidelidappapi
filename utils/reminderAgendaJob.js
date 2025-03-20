@@ -14,7 +14,6 @@ const reminderJob = cron.schedule(
     try {
       console.log("Ejecutando job de recordatorios: " + new Date().toISOString());
 
-      // Obtener la hora actual en UTC
       const nowUTC = new Date();
       const nowChile = toZonedTime(nowUTC, CHILE_TIMEZONE);
       const nowChileFormatted = formatInTimeZone(nowUTC, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm:ss");
@@ -22,41 +21,55 @@ const reminderJob = cron.schedule(
       console.log(`Hora UTC: ${nowUTC.toISOString()}`);
       console.log(`Hora Chile: ${nowChileFormatted} (${CHILE_TIMEZONE})`);
 
-      // Calcular rangos de tiempo para recordatorios normales (1 hora antes)
+      // Calcular rangos para citas presenciales (1 hora antes)
       const oneHourFromNowChile = addHours(nowChile, 1);
-      const startTimeChile = subHours(oneHourFromNowChile, 0.1);
-      const endTimeChile = addHours(oneHourFromNowChile, 0.1);
-      const startTimeUTC = fromZonedTime(startTimeChile, CHILE_TIMEZONE);
-      const endTimeUTC = fromZonedTime(endTimeChile, CHILE_TIMEZONE);
+      const startTimePresencialChile = subHours(oneHourFromNowChile, 0.1);
+      const endTimePresencialChile = addHours(oneHourFromNowChile, 0.1);
+      const startTimePresencialUTC = fromZonedTime(startTimePresencialChile, CHILE_TIMEZONE);
+      const endTimePresencialUTC = fromZonedTime(endTimePresencialChile, CHILE_TIMEZONE);
 
-      // Formatear para logs
-      const startTimeChileFormatted = formatInTimeZone(startTimeChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
-      const endTimeChileFormatted = formatInTimeZone(endTimeChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
+      // Calcular rangos para citas virtuales (5 minutos antes)
+      const fiveMinFromNowChile = addHours(nowChile, 5 / 60); // 5 minutos
+      const startTimeVirtualChile = subHours(fiveMinFromNowChile, 0.05);
+      const endTimeVirtualChile = addHours(fiveMinFromNowChile, 0.05);
+      const startTimeVirtualUTC = fromZonedTime(startTimeVirtualChile, CHILE_TIMEZONE);
+      const endTimeVirtualUTC = fromZonedTime(endTimeVirtualChile, CHILE_TIMEZONE);
 
       console.log("Buscando citas...");
-      console.log(`1. Citas regulares (1 hora antes) entre ${startTimeChileFormatted} y ${endTimeChileFormatted} (Chile)`);
-      console.log(`2. Citas inmediatas creadas en los últimos 5 minutos`);
+      console.log(
+        `1. Citas presenciales (1 hora antes) entre ${formatInTimeZone(startTimePresencialChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm")} y ${formatInTimeZone(
+          endTimePresencialChile,
+          CHILE_TIMEZONE,
+          "dd/MM/yyyy HH:mm"
+        )} (Chile)`
+      );
+      console.log(
+        `2. Citas virtuales (5 minutos antes) entre ${formatInTimeZone(startTimeVirtualChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm")} y ${formatInTimeZone(
+          endTimeVirtualChile,
+          CHILE_TIMEZONE,
+          "dd/MM/yyyy HH:mm"
+        )} (Chile)`
+      );
 
       // Buscar citas que necesitan recordatorio
       const appointments = await Appointment.find({
         status: "confirmed",
         reminderSent: { $ne: true },
         $or: [
-          // Caso 1: Citas que empiezan en ~1 hora
+          // Citas presenciales (1 hora antes)
           {
+            way: "presencial",
             startTime: {
-              $gte: startTimeUTC,
-              $lte: endTimeUTC,
+              $gte: startTimePresencialUTC,
+              $lte: endTimePresencialUTC,
             },
           },
-          // Caso 2: Citas recién confirmadas que empiezan pronto
+          // Citas virtuales (5 minutos antes)
           {
+            way: { $in: ["virtual", "ambas"] },
             startTime: {
-              $gt: nowUTC,
-              $lt: startTimeUTC, // Citas que empiezan antes de 1 hora
-            },
-            createdAt: {
-              $gte: new Date(Date.now() - 5 * 60 * 1000), // Creadas en los últimos 5 minutos
+              $gte: startTimeVirtualUTC,
+              $lte: endTimeVirtualUTC,
             },
           },
         ],
