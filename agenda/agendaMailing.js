@@ -60,7 +60,7 @@ const generateCalendarLinks = (appointment, agenda) => {
 const generateEmailTemplate = (content) => `
   <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #5b7898 60%, #5b7898 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-      <h1 style="color: white; margin: 0; text-align: center;">${content.name}</h1>
+      <h1 style="color: white; margin: 0; text-align: center;">Fidelidapp</h1>
     </div>
     <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       ${content}
