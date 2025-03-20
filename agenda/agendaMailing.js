@@ -326,33 +326,41 @@ const sendReminderEmails = async (appointment) => {
     const agenda = await Agenda.findById(appointment.agendaId);
     const account = await Account.findById(agenda.accountId);
 
+    // Calcular el tiempo exacto que falta para la cita
+    const now = new Date();
+    const appointmentTime = new Date(appointment.startTime);
+    const minutesUntilAppointment = Math.round((appointmentTime - now) / (1000 * 60));
+
+    // Generar mensaje apropiado según el tiempo restante
+    let timeMessage;
+    if (minutesUntilAppointment >= 60) {
+      const hours = Math.floor(minutesUntilAppointment / 60);
+      const minutes = minutesUntilAppointment % 60;
+      timeMessage = `${hours} hora${hours > 1 ? "s" : ""} y ${minutes} minuto${minutes !== 1 ? "s" : ""}`;
+    } else {
+      timeMessage = `${minutesUntilAppointment} minuto${minutesUntilAppointment !== 1 ? "s" : ""}`;
+    }
+
     // Verificar si la cita está confirmada
     if (appointment.status !== "confirmed") {
       console.log(`Cita ${appointment._id} no está confirmada, no se enviará recordatorio`);
       return;
     }
 
-    // Determinar si es una cita virtual y obtener el enlace adecuado
     const isVirtual = appointment.way === "virtual" || appointment.way === "ambas";
-
-    // Usar el enlace de la cita si existe, de lo contrario usar el de la agenda
     const virtualLinkToUse = appointment.virtualLink || (agenda ? agenda.virtualLink : null);
-
-    // Solo mostrar el enlace si es virtual Y hay un enlace disponible
     const showVirtualLink = isVirtual && virtualLinkToUse;
-
-    console.log(`Cita ${appointment._id}: Virtual=${isVirtual}, Tiene enlace=${!!virtualLinkToUse}, Mostrar enlace=${showVirtualLink}`);
 
     // Email para el cliente
     const clientMsg = {
       to: appointment.clientEmail,
       from: emailSender,
-      subject: `Recordatorio: Tu cita en ${agenda.name} es en 1 hora`,
+      subject: `Recordatorio: Tu cita en ${agenda.name} es en ${timeMessage}`,
       html: generateEmailTemplate(`
         <h2 style="color: #333; text-align: center;">Recordatorio de tu cita</h2>
         <div style="margin: 20px 0;">
           <p style="color: #666;">Hola ${appointment.clientName},</p>
-          <p style="color: #666;">Te recordamos que tu cita es en aproximadamente 1 hora:</p>
+          <p style="color: #666;">Te recordamos que tu cita es en ${timeMessage}:</p>
           
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="color: #333; margin-bottom: 15px;">Detalles de la cita:</h3>
@@ -394,11 +402,11 @@ const sendReminderEmails = async (appointment) => {
     const ownerMsg = {
       to: account.userEmails[0],
       from: emailSender,
-      subject: `Recordatorio: Cita en 1 hora con ${appointment.clientName}`,
+      subject: `Recordatorio: Cita en ${timeMessage} con ${appointment.clientName}`,
       html: generateEmailTemplate(`
         <h2 style="color: #333; text-align: center;">Recordatorio de cita</h2>
         <div style="margin: 20px 0;">
-          <p style="color: #666;">Tienes una cita programada en aproximadamente 1 hora:</p>
+          <p style="color: #666;">Tienes una cita programada en ${timeMessage}:</p>
           
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="color: #333; margin-bottom: 15px;">Detalles de la cita:</h3>
@@ -434,7 +442,7 @@ const sendReminderEmails = async (appointment) => {
       `),
     };
 
-    console.log(`Enviando recordatorio a: ${appointment.clientEmail} y ${account.userEmails[0]}`);
+    console.log(`Enviando recordatorio para cita en ${timeMessage} a: ${appointment.clientEmail} y ${account.userEmails[0]}`);
     await sgMail.send([clientMsg, ownerMsg]);
     console.log(`Recordatorio enviado exitosamente para cita ID: ${appointment._id}`);
   } catch (error) {
