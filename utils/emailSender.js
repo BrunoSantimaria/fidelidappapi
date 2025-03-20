@@ -229,36 +229,36 @@ const sendRegisterEmail = async (name, email) => {
         
         <h1 style="color: #5b7898; text-align: center; font-size: 24px; margin-bottom: 20px;">${header}</h1>
         <p style="margin: 0 0 10px;">¡Hola ${name}! 👋</p>
-        <p style="margin: 0 0 10px;">Estamos emocionados de tenerte como parte de la familia Fidelidapp. Has dado el primer paso para transformar la forma en que conectas con tus clientes.</p>
+        <p style="margin: 0 0 10px;">¡Soy Álvaro, fundador de Fidelidapp! Antes que nada, gracias por sumarte. Sé lo desafiante que puede ser fidelizar clientes y hacer crecer un negocio, por eso creamos esta plataforma.</p>
+
 
         <p style="margin: 20px 0 10px;">Con Fidelidapp podrás:</p>
         <ul style="padding-left: 20px; margin: 0 0 20px;">
-          <li style="margin-bottom: 10px;">📇 Tener una base de datos de tus clientes y enviarles campañas de email marketing.</li>
-          <li style="margin-bottom: 10px;">🎯 Implementar un sistema de puntos y recompensas personalizado.</li>
+          <li style="margin-bottom: 10px;">📇 Crear una base de datos de clientes y comunicarte con ellos fácilmente.</li>
+          <li style="margin-bottom: 10px;">🎯 Implementar un sistema de puntos y recompensas sin complicaciones.</li>
           <li style="margin-bottom: 10px;">💳 Ofrecer descuentos exclusivos para tus clientes.</li>
           <li style="margin-bottom: 10px;">📊 Segmentar a tus clientes para ofrecerles promociones específicas.</li>
         </ul>
 
-        <h3 style="color: #5b7898; font-size: 18px; margin-top: 30px; margin-bottom: 10px;">Nuestros Servicios:</h3>
-        <ul style="padding-left: 20px; margin: 0 0 20px;">
-          <li><b>Campañas de Google Ads:</b> Creación, gestión y optimización de anuncios para alimentar tu base de datos.</li>
-          <li><b>Campañas de Meta Ads:</b> Publicación, monitoreo, optimización y engagement con tus seguidores.</li>
-          <li><b>Servicio Community Manager Meta:</b> Publicaciones en Facebook e Instagram, generación de contenido, historias con novedades y promociones.</li>
-          <li><b>Construcción de Landing Page Corporativa:</b> Diseño y mantenimiento de una página informativa, incluye dominio y hosting.</li>
-          <li><b>Servicios On-Site:</b> Activación del programa, capacitación del personal, sesiones fotográficas y materiales promocionales.</li>
-          <li><b>Plataforma Fidelidapp:</b> Gestión de promociones, sistema de puntos, email marketing (10,000/mes), reportes de uso y mensajes automatizados.</li>
-          <li><b>Campañas de Email Marketing:</b> Diseño, redacción y envío de correos personalizados con promociones exclusivas.</li>
-          <li><b>SMS Marketing:</b> Envía mensajes personalizados directamente al teléfono de tus clientes para promociones inmediatas.</li>
-        </ul>
 
-        <p style="margin-top: 30px; text-align: center;">Si necesitas ayuda para comenzar o tienes alguna pregunta, contáctanos:</p>
+      <p style="margin: 0 0 10px;">Me encantaría conocerte y entender cómo podemos ayudarte a sacarle el máximo provecho a Fidelidapp. ¿Qué te parece agendar una asesoría gratuita? En 15 minutos te muestro cómo podemos impulsar tu negocio. 😉</p>
+
+
+      <div style="text-align: center; margin: 20px 0;">
+      <a href="https://www.fidelidapp.cl/agendas/67d99cf731d4bba56cbbd9c3" target="_blank" style="display: inline-block; background-color: #5b7898; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+        📅 Agendar Asesoría Gratis
+      </a>
+    </div>
+
+        <p>Si tienes dudas o necesitas ayuda, puedes escribirme directamente:</p>
+
         <div style="text-align: center; margin: 20px 0;">
           <a href="https://wa.me/56996706983" target="_blank" style="display: inline-block; background-color: #25D366; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px;">📱 WhatsApp</a>
           <a href="mailto:contacto@fidelidapp.com" style="display: inline-block; background-color: #5b7898; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">💌 Enviar Email</a>
         </div>
 
-        <p style="text-align: center; font-size: 14px; color: #888; margin: 0;">¡Prepárate para llevar tu negocio al siguiente nivel!</p>
-        <p style="text-align: right; font-style: italic; margin: 0;">Saludos cordiales,<br>El equipo de Fidelidapp 💪</p>
+        <p style="text-align: center; font-size: 14px; color: #888; margin: 0;">Vamos con todo para hacer crecer tu negocio! 🚀</p>
+        <p style="text-align: right; font-style: italic; margin: 0;">Alvaro - Founder de Fidelidapp 💪</p>
 
         <!-- Pie de página -->
         <div style="text-align: center; font-size: 12px; color: #888; margin-top: 20px;">
@@ -287,6 +287,104 @@ const sendRegisterEmail = async (name, email) => {
     console.log("Email enviado correctamente a:", email);
   } catch (error) {
     console.error("Error al enviar email de registro:", error);
+    throw error;
+  }
+};
+
+const sendLeadEmail = async (name, email) => {
+  // Verificar que los parámetros no sean undefined o null
+  if (!email) {
+    throw new Error("Email es requerido para enviar el correo de registro");
+  }
+
+  if (!name) {
+    name = "Usuario"; // Valor por defecto si no se proporciona nombre
+  }
+
+  const logoUrl = "https://res.cloudinary.com/di92lsbym/image/upload/v1729563774/q7bruom3vw4dee3ld3tn.png";
+  const subject = "¡Tu negocio está a punto de crecer!";
+  const header = "¡Hablemos sobre cómo potenciar tu negocio! 🚀";
+  const frontendUrl = process.env.FRONTEND_URL;
+
+  // Contenido del email con el logo incluido
+  const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>¡Bienvenido a Fidelidapp!</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9f9f9;">
+      <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Sección del logo -->
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${logoUrl}" alt="Fidelidapp Logo" style="height: 80px; display: block; margin: auto;">
+        </div>
+        
+        <h1 style="color: #5b7898; text-align: center; font-size: 24px; margin-bottom: 20px;">${header}</h1>
+        <p style="margin: 0 0 10px;">¡Hola ${name}! 👋</p>
+        <p style="margin: 0 0 10px;">Soy Álvaro, fundador de Fidelidapp, y quiero agradecerte por tu interés en nuestra plataforma. 🚀</p>
+        <p style="margin: 0 0 10px;"> Sabemos que conectar con tus clientes y fidelizarlos puede marcar la diferencia en tu negocio. Con Fidelidapp, te ayudamos a implementar estrategias efectivas para que más clientes vuelvan y aumentes tus ventas.</p>
+
+        <p style="margin: 20px 0 10px;">Cómo podemos ayudarte? Parte de lo que podrás lograr con nuestra plataforma es:</p>
+        <ul style="padding-left: 20px; margin: 0 0 20px;">
+          <li style="margin-bottom: 10px;">📇 Crear una base de datos de clientes y comunicarte con ellos fácilmente.</li>
+          <li style="margin-bottom: 10px;">🎯 Implementar un sistema de puntos y recompensas sin complicaciones.</li>
+          <li style="margin-bottom: 10px;">💳 Ofrecer descuentos exclusivos para tus clientes.</li>
+          <li style="margin-bottom: 10px;">📊 Segmentar a tus clientes para ofrecerles promociones específicas.</li>
+        </ul>
+
+
+      <p style="margin: 0 0 10px;">Me encantaría conocerte y entender cómo podemos ayudarte a sacarle el máximo provecho a Fidelidapp. ¿Qué te parece agendar una asesoría gratuita? En 15 minutos te muestro cómo podemos impulsar tu negocio. 😉</p>
+
+      <div style="text-align: center; margin: 20px 0;">
+      <a href="https://www.fidelidapp.cl/agendas/67d99cf731d4bba56cbbd9c3" target="_blank" style="display: inline-block; background-color: #5b7898; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">
+        📅 Agendar Asesoría Gratis
+      </a>
+    </div>
+
+        <p>Si tienes dudas o necesitas ayuda, puedes escribirme directamente:</p>
+
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="https://wa.me/56996706983" target="_blank" style="display: inline-block; background-color: #25D366; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-right: 10px;">📱 WhatsApp</a>
+          <a href="mailto:contacto@fidelidapp.com" style="display: inline-block; background-color: #5b7898; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">💌 Enviar Email</a>
+        </div>
+
+        <p style="text-align: center; font-size: 14px; color: #888; margin: 0;">Vamos con todo para hacer crecer tu negocio! 🚀</p>
+        <p style="text-align: right; font-style: italic; margin: 0;">Alvaro - Founder de Fidelidapp 💪</p>
+
+        <!-- Pie de página -->
+        <div style="text-align: center; font-size: 12px; color: #888; margin-top: 20px;">
+          <p>© 2025 Todos los derechos reservados Fidelidapp</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+
+    const msg = {
+      to: email,
+      from: fromEmail,
+      subject,
+      html,
+    };
+
+    console.log("Sending MSG:" , msg)
+
+    // Verificación adicional antes de enviar
+    if (!msg.to) {
+      throw new Error("Destinatario (to) es requerido");
+    }
+
+    await sgMail.send(msg);
+
+    console.log("Email enviado correctamente a:", email);
+  } catch (error) {
+    console.error("Error al enviar email de leads:", error);
     throw error;
   }
 };
@@ -460,4 +558,5 @@ module.exports = {
   sendRegisterEmail,
   sendReminderEmail,
   sendAutomatedEmail,
+  sendLeadEmail
 };

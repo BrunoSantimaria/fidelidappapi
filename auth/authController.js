@@ -207,59 +207,7 @@ exports.googleSignIn = async (req, res) => {
 };
 
 // Asegúrate de que esta función esté definida antes de verifyEmail
-const addUserToFidelidappAccount = async (email, name) => {
-  const fappid = process.env.FAPPID;
-  if (!fappid) {
-    console.error("Fidelidapp account ID not found in environment variables");
-    return;
-  }
 
-  try {
-    // Convert email to lowercase for consistency
-    const normalizedEmail = email.toLowerCase();
-
-    // Check if the user already exists as a client
-    let client = await Client.findOne({ email: normalizedEmail });
-
-    if (!client) {
-      // Create a new client if not found
-      client = new Client({
-        name: name,
-        email: normalizedEmail,
-        addedAccounts: [{ accountId: fappid }],
-      });
-
-      // Save the new client to the database
-      client = await client.save();
-      console.log("New Fidelidapp client created:", client);
-    } else {
-      // Add the Fidelidapp account to the existing client if not already added
-      const accountExists = client.addedAccounts.some((account) => account.accountId === fappid);
-
-      if (!accountExists) {
-        client.addedAccounts.push({ accountId: fappid });
-        client = await client.save();
-        console.log("Fidelidapp account added to existing client:", client);
-      }
-    }
-
-    // Add client to Fidelidapp account's `clients` array
-    await Account.findByIdAndUpdate(fappid, {
-      $addToSet: {
-        clients: { id: client._id, name: client.name, email: client.email },
-      },
-    });
-    //Send register email
-    await emailSender.sendRegisterEmail(client.name, client.email);
-
-    console.log("User successfully added to Fidelidapp:", normalizedEmail);
-
-    log.logAction(normalizedEmail, "user_added", "Usuario agregado a Fidelidapp", "#leads");
-  } catch (error) {
-    console.error("Error adding user to Fidelidapp account:", error);
-    throw error;
-  }
-};
 
 exports.current = async (req, res) => {
   try {
@@ -299,29 +247,6 @@ exports.logout = (req, res) => {
   res.status(200).json({ message: "Sesión cerrada exitosamente" });
 };
 
-exports.contact = async (req, res) => {
-  try {
-    const { name, email, message, phone, organization } = req.body;
-
-    if (!name || !email || !message) {
-      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
-    }
-
-    const details = `
-      Nombre: ${name}
-      Email: ${email}
-      Organización: ${organization || "No especificada"}
-      Teléfono: ${phone || "No especificado"}
-      Mensaje: ${message}
-    `;
-
-    await log.logAction(email, "contact", details, "#leads");
-    res.status(201).json({ message: "Mensaje enviado con éxito" });
-  } catch (error) {
-    console.error("Error en contact:", error);
-    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
-  }
-};
 
 exports.verifyEmail = async (req, res) => {
   try {
@@ -382,5 +307,150 @@ exports.verifyEmail = async (req, res) => {
       success: false,
       message: "Error al verificar el email. Por favor, intenta nuevamente.",
     });
+  }
+};
+
+exports.contact = async (req, res) => {
+  try {
+    const { name, email, message, phone, organization } = req.body;
+
+    console.log(req.body)
+
+    if (!name || !email ) {
+      return res.status(400).json({ message: ERROR_MESSAGES.MISSING_FIELDS });
+    }
+
+    const details = `
+      Nombre: ${name}
+      Email: ${email}
+      Organización: ${organization || "No especificada"}
+      Teléfono: ${phone || "No especificado"}
+      Mensaje: ${message}
+    `;
+
+    await addClientToFidelidappAccount(name,email,phone)
+    console.log("Lead added to Fiedlidapp", name, email)
+
+    // Enviar email de leads
+    try {
+      await emailSender.sendLeadEmail(name, email);
+      log.logAction(email, "lead_email_sent", "Email de leads enviado");
+    } catch (emailError) {
+      console.error("Error al enviar email de leads:", emailError);
+      log.logAction(email, "leads_email_error", "Error al enviar email de leads");
+    }
+
+    await log.logAction(email, "contact", details, "#leads");
+    res.status(201).json({ message: "Mensaje enviado con éxito" });
+  } catch (error) {
+    console.error("Error en contact:", error);
+    res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
+  }
+};
+
+
+const addUserToFidelidappAccount = async (email, name) => {
+  const fappid = process.env.FAPPID;
+  if (!fappid) {
+    console.error("Fidelidapp account ID not found in environment variables");
+    return;
+  }
+
+  try {
+    // Convert email to lowercase for consistency
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if the user already exists as a client
+    let client = await Client.findOne({ email: normalizedEmail });
+
+    if (!client) {
+      // Create a new client if not found
+      client = new Client({
+        name: name,
+        email: normalizedEmail,
+        addedAccounts: [{ accountId: fappid }],
+      });
+
+      // Save the new client to the database
+      client = await client.save();
+      console.log("New Fidelidapp client created:", client);
+    } else {
+      // Add the Fidelidapp account to the existing client if not already added
+      const accountExists = client.addedAccounts.some((account) => account.accountId === fappid);
+
+      if (!accountExists) {
+        client.addedAccounts.push({ accountId: fappid });
+        client = await client.save();
+        console.log("Fidelidapp account added to existing client:", client);
+      }
+    }
+
+    // Add client to Fidelidapp account's `clients` array
+    await Account.findByIdAndUpdate(fappid, {
+      $addToSet: {
+        clients: { id: client._id, name: client.name, email: client.email },
+      },
+    });
+    //Send register email
+    await emailSender.sendRegisterEmail(client.name, client.email);
+
+    console.log("User successfully added to Fidelidapp:", normalizedEmail);
+
+    log.logAction(normalizedEmail, "user_added", "Usuario agregado a Fidelidapp", "#leads");
+  } catch (error) {
+    console.error("Error adding user to Fidelidapp account:", error);
+    throw error;
+  }
+};
+
+
+const addClientToFidelidappAccount = async (email, name) => {
+  const fappid = process.env.FAPPID;
+  if (!fappid) {
+    console.error("Fidelidapp account ID not found in environment variables");
+    return;
+  }
+
+  try {
+    // Convert email to lowercase for consistency
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if the user already exists as a client
+    let client = await Client.findOne({ email: normalizedEmail });
+
+    if (!client) {
+      // Create a new client if not found
+      client = new Client({
+        name: name,
+        email: normalizedEmail,
+        addedAccounts: [{ accountId: fappid }],
+      });
+
+      // Save the new client to the database
+      client = await client.save();
+      console.log("New Fidelidapp client created:", client);
+    } else {
+      // Add the Fidelidapp account to the existing client if not already added
+      const accountExists = client.addedAccounts.some((account) => account.accountId === fappid);
+
+      if (!accountExists) {
+        client.addedAccounts.push({ accountId: fappid });
+        client = await client.save();
+        console.log("Fidelidapp account added to existing client:", client);
+      }
+    }
+
+    // Add client to Fidelidapp account's `clients` array
+    await Account.findByIdAndUpdate(fappid, {
+      $addToSet: {
+        clients: { id: client._id, name: client.name, email: client.email },
+      },
+    });
+    
+    console.log("User successfully added to Fidelidapp:", normalizedEmail);
+    log.logAction(normalizedEmail, "user_added", "Lead agregado a Fidelidapp y contactado por email", "#leads");
+  } catch (error) {
+    console.error("Error adding user to Fidelidapp account:", error);
+    throw error;
   }
 };
