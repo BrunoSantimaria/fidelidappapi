@@ -142,4 +142,21 @@ router.post("/appointments/cancel-token/:token", cancelAppointmentByToken);
 // Nueva ruta para obtener el conteo de citas pendientes de un cliente
 router.get("/appointments/pending", getPendingAppointmentsCount);
 
+// Ruta para probar el envío de recordatorios con enlaces virtuales
+router.post("/test-reminder/:appointmentId", async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { sendTestReminder } = require("./reminderJob");
+
+    const result = await sendTestReminder(appointmentId);
+    res.json(result);
+  } catch (error) {
+    console.error("Error al enviar recordatorio de prueba:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;

@@ -2,6 +2,9 @@ const sgMail = require("@sendgrid/mail");
 const Account = require("../accounts/Account.model");
 const Agenda = require("./agenda.model");
 const Appointment = require("./appointment.model");
+const { format } = require("date-fns");
+const { es } = require("date-fns/locale");
+const { utcToZonedTime, formatInTimeZone } = require("date-fns-tz");
 const fromEmail = process.env.FROM_EMAIL;
 // Configurar SendGrid con tu API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -10,12 +13,7 @@ const emailSender = fromEmail;
 const { DateTime } = require("luxon");
 
 const formatDateTime = (date) => {
-  // Asegurar que 'date' sea un objeto de tipo Date
-  const dateObject = date instanceof Date ? date : new Date(date);
-
-  return DateTime.fromJSDate(dateObject) // Convertimos a Luxon desde un objeto Date
-    .setZone("America/Santiago") // Ajustamos la zona horaria
-    .toFormat("dd LLL yyyy, HH:mm"); // Formato de salida (día, mes, año, hora y minutos)
+  return formatInTimeZone(new Date(date), "America/Santiago", "PPpp", { locale: es });
 };
 
 const generateCalendarLinks = (appointment, agenda) => {
@@ -64,8 +62,8 @@ const generateCalendarLinks = (appointment, agenda) => {
 
 const generateEmailTemplate = (content) => `
   <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <div style="background: linear-gradient(135deg, #6B73FF 0%, #5c7898 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-      <h1 style="color: white; margin: 0; text-align: center;">Fidelidapp</h1>
+    <div style="background: linear-gradient(135deg, #5b7898 60%, #5b7898 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+      <h1 style="color: white; margin: 0; text-align: center;">${content.name}</h1>
     </div>
     <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
       ${content}
@@ -326,54 +324,122 @@ const sendStatusChangeEmails = async (appointment, newStatus) => {
 
 const sendReminderEmails = async (appointment) => {
   try {
+    console.log(`Preparando recordatorio para cita ID: ${appointment._id}`);
+
     const agenda = await Agenda.findById(appointment.agendaId);
     const account = await Account.findById(agenda.accountId);
+
+    // Verificar si la cita está confirmada
+    if (appointment.status !== "confirmed") {
+      console.log(`Cita ${appointment._id} no está confirmada, no se enviará recordatorio`);
+      return;
+    }
+
+    // Determinar si es una cita virtual y obtener el enlace adecuado
+    const isVirtual = appointment.way === "virtual" || appointment.way === "ambas";
+
+    // Usar el enlace de la cita si existe, de lo contrario usar el de la agenda
+    const virtualLinkToUse = appointment.virtualLink || (agenda ? agenda.virtualLink : null);
+
+    // Solo mostrar el enlace si es virtual Y hay un enlace disponible
+    const showVirtualLink = isVirtual && virtualLinkToUse;
+
+    console.log(`Cita ${appointment._id}: Virtual=${isVirtual}, Tiene enlace=${!!virtualLinkToUse}, Mostrar enlace=${showVirtualLink}`);
 
     // Email para el cliente
     const clientMsg = {
       to: appointment.clientEmail,
       from: emailSender,
       subject: `Recordatorio: Tu cita en ${agenda.name} es en 1 hora`,
-      html: `
-
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Recordatorio de tu cita</h2>
-          <div style="margin: 20px 0;">
-            <p><strong>Tu cita es en 1 hora:</strong></p>
-            <ul>
-              <li>Servicio: ${agenda.name}</li>
-              <li>Fecha y hora: ${formatDateTime(appointment.startTime)}</li>
-              <li>Dirección: [Agregar dirección del negocio]</li>
+      html: generateEmailTemplate(`
+        <h2 style="color: #333; text-align: center;">Recordatorio de tu cita</h2>
+        <div style="margin: 20px 0;">
+          <p style="color: #666;">Hola ${appointment.clientName},</p>
+          <p style="color: #666;">Te recordamos que tu cita es en aproximadamente 1 hora:</p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #333; margin-bottom: 15px;">Detalles de la cita:</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              <li style="margin-bottom: 10px;">🏢 Servicio: ${agenda.name}</li>
+              <li style="margin-bottom: 10px;">📅 Fecha y hora: ${formatDateTime(appointment.startTime)}</li>
+              <li style="margin-bottom: 10px;">⏱️ Duración: ${agenda.duration} minutos</li>
+              ${appointment.numberOfPeople > 1 ? `<li style="margin-bottom: 10px;">👥 Personas: ${appointment.numberOfPeople}</li>` : ""}
+              <li style="margin-bottom: 10px;">📍 Modalidad: ${isVirtual ? "Virtual" : "Presencial"}</li>
             </ul>
           </div>
+          
+          ${
+            showVirtualLink
+              ? `
+            <div style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+              <h3 style="color: #0078d4; margin-bottom: 15px;">🎥 Tu enlace para la videollamada:</h3>
+              <p style="margin-bottom: 15px;">Haz clic en el botón de abajo para unirte a la reunión:</p>
+              <a href="${virtualLinkToUse}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #0078d4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                Unirse a la reunión
+              </a>
+              <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                O copia y pega este enlace en tu navegador:<br>
+                <span style="word-break: break-all;">${virtualLinkToUse}</span>
+              </p>
+            </div>
+            `
+              : ""
+          }
+          
+          <p style="color: #666; margin-top: 20px;">
+            ¡Te esperamos!
+          </p>
         </div>
-      `,
+      `),
     };
 
     // Email para el dueño de la agenda
     const ownerMsg = {
       to: account.userEmails[0],
       from: emailSender,
-      subject: `Recordatorio: Cita en 1 hora`,
-      html: `
-
-        <div style="font-family: Arial, sans-serif;">
-          <h2>Recordatorio de cita</h2>
-          <div style="margin: 20px 0;">
-            <p><strong>Tienes una cita en 1 hora:</strong></p>
-            <ul>
-              <li>Cliente: ${appointment.clientName}</li>
-              <li>Email: ${appointment.clientEmail}</li>
-              <li>Teléfono: ${appointment.clientPhone || "No proporcionado"}</li>
-              <li>Fecha y hora: ${formatDateTime(appointment.startTime)}</li>
-              ${appointment.numberOfPeople > 1 ? `<li>Número de personas: ${appointment.numberOfPeople}</li>` : ""}
+      subject: `Recordatorio: Cita en 1 hora con ${appointment.clientName}`,
+      html: generateEmailTemplate(`
+        <h2 style="color: #333; text-align: center;">Recordatorio de cita</h2>
+        <div style="margin: 20px 0;">
+          <p style="color: #666;">Tienes una cita programada en aproximadamente 1 hora:</p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #333; margin-bottom: 15px;">Detalles de la cita:</h3>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              <li style="margin-bottom: 10px;">👤 Cliente: ${appointment.clientName}</li>
+              <li style="margin-bottom: 10px;">📧 Email: ${appointment.clientEmail}</li>
+              <li style="margin-bottom: 10px;">📱 Teléfono: ${appointment.clientPhone || "No proporcionado"}</li>
+              <li style="margin-bottom: 10px;">📅 Fecha y hora: ${formatDateTime(appointment.startTime)}</li>
+              ${appointment.numberOfPeople > 1 ? `<li style="margin-bottom: 10px;">👥 Personas: ${appointment.numberOfPeople}</li>` : ""}
+              <li style="margin-bottom: 10px;">📍 Modalidad: ${isVirtual ? "Virtual" : "Presencial"}</li>
+              ${appointment.notes ? `<li style="margin-bottom: 10px;">📝 Notas: ${appointment.notes}</li>` : ""}
             </ul>
           </div>
+          
+          ${
+            showVirtualLink
+              ? `
+            <div style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+              <h3 style="color: #0078d4; margin-bottom: 15px;">🎥 Enlace para la videollamada:</h3>
+              <p style="margin-bottom: 15px;">Haz clic en el botón de abajo para unirte a la reunión:</p>
+              <a href="${virtualLinkToUse}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #0078d4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                Unirse a la reunión
+              </a>
+              <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                O copia y pega este enlace en tu navegador:<br>
+                <span style="word-break: break-all;">${virtualLinkToUse}</span>
+              </p>
+            </div>
+            `
+              : ""
+          }
         </div>
-      `,
+      `),
     };
 
+    console.log(`Enviando recordatorio a: ${appointment.clientEmail} y ${account.userEmails[0]}`);
     await sgMail.send([clientMsg, ownerMsg]);
+    console.log(`Recordatorio enviado exitosamente para cita ID: ${appointment._id}`);
   } catch (error) {
     console.error("Error enviando emails de recordatorio:", error);
     throw error;

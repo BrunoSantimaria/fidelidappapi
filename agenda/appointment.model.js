@@ -61,6 +61,14 @@ const AppointmentSchema = new mongoose.Schema(
       type: String,
       default: () => crypto.randomBytes(32).toString("hex"),
     },
+    way: {
+      type: String,
+      enum: ["presencial", "virtual", "ambos"],
+      default: "ambos",
+    },
+    virtualLink: {
+      type: String,
+    },
   },
   { timestamps: true }
 );

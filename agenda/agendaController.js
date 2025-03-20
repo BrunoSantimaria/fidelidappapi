@@ -11,7 +11,7 @@ const Account = require("../accounts/Account.model.js");
 
 const createAgenda = async (req, res) => {
   try {
-    const { name, description, type, recurringConfig, specialDates, duration, slots, accountId, requiresCapacity } = req.body;
+    const { name, description, type, recurringConfig, specialDates, duration, slots, accountId, requiresCapacity, way, virtualLink } = req.body;
 
     const uniqueLink = generateUniqueLink();
 
@@ -24,6 +24,8 @@ const createAgenda = async (req, res) => {
       uniqueLink,
       type: type || "recurring",
       requiresCapacity,
+      way: way || "ambos",
+      virtualLink: virtualLink || "",
     };
 
     if (type === "recurring" && recurringConfig) {
@@ -95,6 +97,8 @@ const createAppointment = async (req, res) => {
       notes,
       numberOfPeople: agenda.requiresCapacity ? numberOfPeople : 1,
       status: "pending",
+      way: agenda.way,
+      virtualLink: agenda.way === "virtual" ? virtualLink : "",
     });
 
     // Enviar correos de notificación

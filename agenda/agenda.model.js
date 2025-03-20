@@ -81,6 +81,14 @@ const agendaSchema = new mongoose.Schema(
     disabledAt: {
       type: Date,
     },
+    way: {
+      type: String,
+      enum: ["presencial", "virtual", "ambos"],
+      default: "ambos",
+    },
+    virtualLink: {
+      type: String,
+    },
   },
   {
     timestamps: true,
