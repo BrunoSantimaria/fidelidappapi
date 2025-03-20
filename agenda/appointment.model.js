@@ -63,8 +63,8 @@ const AppointmentSchema = new mongoose.Schema(
     },
     way: {
       type: String,
-      enum: ["presencial", "virtual", "ambos"],
-      default: "ambos",
+      enum: ["presencial", "virtual", "ambas"],
+      default: "presencial",
     },
     virtualLink: {
       type: String,

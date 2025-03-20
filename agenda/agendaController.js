@@ -24,7 +24,7 @@ const createAgenda = async (req, res) => {
       uniqueLink,
       type: type || "recurring",
       requiresCapacity,
-      way: way || "ambos",
+      way: way || "ambas",
       virtualLink: virtualLink || "",
     };
 
@@ -45,7 +45,6 @@ const createAppointment = async (req, res) => {
   try {
     const { agendaId, startTime, endTime, clientName, clientEmail, clientPhone, notes, numberOfPeople } = req.body;
     console.log("Creando cita:", req.body);
-
 
     // Verificar si el agendaId es un ObjectId válido
     const isValidObjectId = mongoose.Types.ObjectId.isValid(agendaId);
@@ -133,9 +132,7 @@ const addClientToAccount = async (accountId, name, email, phoneNumber) => {
       console.log("Cliente creado y agregado desde la agenda a la cuenta:", client);
     } else {
       // Si el cliente ya existe, verificar si está en la cuenta
-      const isAlreadyInAccount = client.addedAccounts.some(
-        (acc) => acc.accountId.toString() === accountId.toString()
-      );
+      const isAlreadyInAccount = client.addedAccounts.some((acc) => acc.accountId.toString() === accountId.toString());
 
       if (!isAlreadyInAccount) {
         client.addedAccounts.push({ accountId });
@@ -152,9 +149,7 @@ const addClientToAccount = async (accountId, name, email, phoneNumber) => {
       throw new Error("La cuenta no existe.");
     }
 
-    const isClientInAccount = account.clients.some(
-      (c) => c.email === email
-    );
+    const isClientInAccount = account.clients.some((c) => c.email === email);
 
     if (!isClientInAccount) {
       account.clients.push({
@@ -167,12 +162,10 @@ const addClientToAccount = async (accountId, name, email, phoneNumber) => {
       await account.save();
       console.log("Cliente agregado en la cuenta correctamente.");
     }
-
   } catch (error) {
     console.error("Error al agregar el cliente a la cuenta:", error);
   }
 };
-
 
 const getAccountAppointments = async (req, res) => {
   try {
