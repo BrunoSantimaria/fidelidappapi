@@ -16,74 +16,94 @@ const reminderJob = cron.schedule(
 
       // Obtener la hora actual en UTC
       const nowUTC = new Date();
-
-      // Convertir a hora de Chile
       const nowChile = toZonedTime(nowUTC, CHILE_TIMEZONE);
-
-      // Formatear para mostrar claramente la diferencia
       const nowChileFormatted = formatInTimeZone(nowUTC, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm:ss");
 
       console.log(`Hora UTC: ${nowUTC.toISOString()}`);
       console.log(`Hora Chile: ${nowChileFormatted} (${CHILE_TIMEZONE})`);
 
-      // Calcular una hora desde ahora en horario chileno
+      // Calcular rangos de tiempo para recordatorios normales (1 hora antes)
       const oneHourFromNowChile = addHours(nowChile, 1);
-
-      // Rango de tiempo para buscar citas (54-66 minutos desde ahora en horario chileno)
-      const startTimeChile = subHours(oneHourFromNowChile, 0.1); // ~54 minutos
-      const endTimeChile = addHours(oneHourFromNowChile, 0.1); // ~66 minutos
-
-      // Convertir de vuelta a UTC para la consulta a MongoDB
+      const startTimeChile = subHours(oneHourFromNowChile, 0.1);
+      const endTimeChile = addHours(oneHourFromNowChile, 0.1);
       const startTimeUTC = fromZonedTime(startTimeChile, CHILE_TIMEZONE);
       const endTimeUTC = fromZonedTime(endTimeChile, CHILE_TIMEZONE);
 
-      // Formatear para mostrar claramente
+      // Formatear para logs
       const startTimeChileFormatted = formatInTimeZone(startTimeChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
       const endTimeChileFormatted = formatInTimeZone(endTimeChile, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
 
-      console.log(`Buscando citas entre ${startTimeUTC.toISOString()} y ${endTimeUTC.toISOString()} (UTC)`);
-      console.log(`Equivalente a ${startTimeChileFormatted} y ${endTimeChileFormatted} (Chile)`);
+      console.log("Buscando citas...");
+      console.log(`1. Citas regulares (1 hora antes) entre ${startTimeChileFormatted} y ${endTimeChileFormatted} (Chile)`);
+      console.log(`2. Citas inmediatas creadas en los últimos 5 minutos`);
 
-      // Buscar citas confirmadas que empiecen en aproximadamente 1 hora
+      // Buscar citas que necesitan recordatorio
       const appointments = await Appointment.find({
         status: "confirmed",
-        startTime: {
-          $gte: startTimeUTC,
-          $lte: endTimeUTC,
-        },
         reminderSent: { $ne: true },
+        $or: [
+          // Caso 1: Citas que empiezan en ~1 hora
+          {
+            startTime: {
+              $gte: startTimeUTC,
+              $lte: endTimeUTC,
+            },
+          },
+          // Caso 2: Citas recién confirmadas que empiezan pronto
+          {
+            startTime: {
+              $gt: nowUTC,
+              $lt: startTimeUTC, // Citas que empiezan antes de 1 hora
+            },
+            createdAt: {
+              $gte: new Date(Date.now() - 5 * 60 * 1000), // Creadas en los últimos 5 minutos
+            },
+          },
+        ],
       }).populate("agendaId");
 
       console.log(`Encontradas ${appointments.length} citas para enviar recordatorios`);
 
-      // Imprimir detalles de las citas encontradas para depuración
+      // Imprimir detalles de las citas encontradas
       if (appointments.length > 0) {
         appointments.forEach((app) => {
-          const appTimeChileFormatted = formatInTimeZone(app.startTime, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
-          console.log(`Cita ID: ${app._id}, startTime UTC: ${app.startTime.toISOString()}, startTime Chile: ${appTimeChileFormatted}, way: ${app.way}`);
+          const appTimeChile = formatInTimeZone(app.startTime, CHILE_TIMEZONE, "dd/MM/yyyy HH:mm");
+          const minutesUntilAppointment = Math.round((app.startTime - nowUTC) / (1000 * 60));
+          console.log(
+            `Cita ID: ${app._id}, ` +
+              `Cliente: ${app.clientName}, ` +
+              `Hora: ${appTimeChile}, ` +
+              `Faltan: ${minutesUntilAppointment} minutos, ` +
+              `Tipo: ${app.way}`
+          );
         });
       }
 
+      // Procesar cada cita encontrada
       for (const appointment of appointments) {
-        // Verificar si es una cita virtual y tiene enlace
         const isVirtual = appointment.way === "virtual" || appointment.way === "ambas";
         const agenda = appointment.agendaId;
         const virtualLinkToUse = appointment.virtualLink || (agenda ? agenda.virtualLink : null);
+        const minutesUntilAppointment = Math.round((appointment.startTime - nowUTC) / (1000 * 60));
 
         console.log(
-          `Enviando recordatorio para cita ID: ${appointment._id}, tipo: ${appointment.way}, virtual: ${isVirtual}, tiene enlace: ${!!virtualLinkToUse}`
+          `Enviando recordatorio para cita ID: ${appointment._id}, ` +
+            `tipo: ${appointment.way}, ` +
+            `virtual: ${isVirtual}, ` +
+            `tiene enlace: ${!!virtualLinkToUse}, ` +
+            `faltan: ${minutesUntilAppointment} minutos`
         );
 
         await sendReminderEmails(appointment);
         await Appointment.findByIdAndUpdate(appointment._id, { reminderSent: true });
-        console.log(`Recordatorio enviado y marcado como enviado para cita ID: ${appointment._id}`);
+        console.log(`✅ Recordatorio enviado y marcado como enviado para cita ID: ${appointment._id}`);
       }
     } catch (error) {
       console.error("Error en el job de recordatorios:", error);
     }
   },
   {
-    scheduled: false, // Inicialmente no programado
+    scheduled: false,
   }
 );
 

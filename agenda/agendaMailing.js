@@ -1,16 +1,13 @@
 const sgMail = require("@sendgrid/mail");
 const Account = require("../accounts/Account.model");
 const Agenda = require("./agenda.model");
-const Appointment = require("./appointment.model");
-const { format } = require("date-fns");
+
 const { es } = require("date-fns/locale");
-const { utcToZonedTime, formatInTimeZone } = require("date-fns-tz");
+const { formatInTimeZone } = require("date-fns-tz");
 const fromEmail = process.env.FROM_EMAIL;
 // Configurar SendGrid con tu API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const emailSender = fromEmail;
-
-const { DateTime } = require("luxon");
 
 const formatDateTime = (date) => {
   return formatInTimeZone(new Date(date), "America/Santiago", "PPpp", { locale: es });
